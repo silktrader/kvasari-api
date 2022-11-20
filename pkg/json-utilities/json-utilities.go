@@ -24,8 +24,8 @@ func NoContent(writer http.ResponseWriter) {
 	writer.WriteHeader(http.StatusNoContent)
 }
 
-func BadRequest(writer http.ResponseWriter, err error) {
-	encoderJSONError(writer, http.StatusBadRequest, err)
+func BadRequest(writer http.ResponseWriter) {
+	writer.WriteHeader(http.StatusBadRequest)
 }
 
 func InternalServerError(writer http.ResponseWriter, err error) {

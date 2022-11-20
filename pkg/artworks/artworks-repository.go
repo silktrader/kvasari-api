@@ -9,6 +9,7 @@ import (
 
 type ArtworkRepository interface {
 	AddArtwork(data AddArtworkData, userId string) (string, time.Time, error)
+	DeleteArtwork(artworkId string, userId string) bool
 }
 
 type artworkRepository struct {
@@ -42,4 +43,29 @@ func (ar *artworkRepository) AddArtwork(data AddArtworkData, userId string) (id 
 	}
 
 	return id, now, nil
+}
+
+// OwnsArtwork verifies whether a given artwork exists, wasn't deleted and is owned by the specified user
+func (ar *artworkRepository) OwnsArtwork(artworkId string, userId string) bool {
+	var exists = false
+	var err = ar.Connection.QueryRow("SELECT TRUE FROM artworks WHERE id = ? AND author_id = ? AND deleted = false", artworkId, userId).Scan(&exists)
+	return err != nil && exists
+
+}
+
+// DeleteArtwork will perform a soft delete and return a negative result in case:
+//   - the artwork doesn't exist
+//   - the artwork isn't owned by the specified user
+//   - the artwork was previously deleted
+func (ar *artworkRepository) DeleteArtwork(artworkId string, userId string) bool {
+
+	result, err := ar.Connection.Exec("UPDATE artworks SET deleted = TRUE WHERE artworks.id = ? AND author_id = ? AND deleted = FALSE", artworkId, userId)
+	if err != nil {
+		return false
+	}
+	results, err := result.RowsAffected()
+	if err != nil || results != 1 {
+		return false
+	}
+	return true
 }

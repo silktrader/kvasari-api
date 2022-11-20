@@ -31,6 +31,7 @@ CREATE TABLE
 		created datetime,
 		added datetime NOT NULL,
 		updated datetime NOT NULL,
+		deleted INTEGER DEFAULT 0 CHECK (deleted in (0, 1)),
 		FOREIGN KEY (author_id) REFERENCES users (id)
 	);
 

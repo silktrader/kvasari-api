@@ -85,3 +85,7 @@ func (e *Engine) Post(path string, handlerFunc http.HandlerFunc, middleware ...f
 func (e *Engine) Put(path string, handlerFunc http.HandlerFunc, middleware ...func(http.Handler) http.Handler) {
 	e.Handle(http.MethodPut, path, handlerFunc, middleware...)
 }
+
+func (e *Engine) Delete(path string, handlerFunc http.HandlerFunc, middleware ...func(http.Handler) http.Handler) {
+	e.Handle(http.MethodDelete, path, handlerFunc, middleware...)
+}
