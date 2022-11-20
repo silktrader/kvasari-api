@@ -29,6 +29,7 @@ import (
 	"fmt"
 	"github.com/ardanlabs/conf"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/silktrader/kvasari/pkg/artworks"
 	"github.com/silktrader/kvasari/pkg/globaltime"
 	"github.com/silktrader/kvasari/pkg/rest"
 	"github.com/silktrader/kvasari/pkg/storage/sqlite"
@@ -109,8 +110,12 @@ func run() error {
 	}
 	handler := e.Handler()
 
-	// setup users handlers
-	users.RegisterHandlers(e, users.NewUserRepository(storage))
+	// setup handlers
+	var usersRepository = users.NewRepository(storage)
+	var artworksRepository = artworks.NewRepository(storage)
+	
+	users.RegisterHandlers(e, usersRepository)
+	artworks.RegisterHandlers(e, artworksRepository, usersRepository)
 
 	handler, err = registerWebUI(handler)
 	if err != nil {

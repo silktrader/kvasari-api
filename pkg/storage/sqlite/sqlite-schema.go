@@ -16,10 +16,10 @@ CREATE TABLE
 		PRIMARY KEY ("id")
 	);
 
-CREATE UNIQUE INDEX IF NOT EXISTS "Alias Index" ON "users" ("alias" ASC);
+CREATE UNIQUE INDEX IF NOT EXISTS "Title Index" ON "users" ("alias" ASC);
 
 CREATE TABLE
-	IF NOT EXISTS artwork (
+	IF NOT EXISTS artworks (
 		id TEXT PRIMARY KEY,
 		title TEXT NOT NULL,
 		type TEXT NOT NULL,

@@ -50,10 +50,7 @@ func addUser(ur UserRepository) http.HandlerFunc {
 func updateName(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
-		userId, err := auth.GetUserId(request)
-		if err != nil {
-			JSON.InternalServerError(writer, err)
-		}
+		var userId = auth.GetUserId(request)
 
 		var data UpdateUserNameData
 		if err := JSON.DecodeValidate(request, &data); err != nil {
@@ -61,8 +58,7 @@ func updateName(ur UserRepository) http.HandlerFunc {
 			return
 		}
 
-		err = ur.UpdateUserName(userId, data)
-		if err != nil {
+		if err := ur.UpdateUserName(userId, data); err != nil {
 			JSON.InternalServerError(writer, err)
 		}
 

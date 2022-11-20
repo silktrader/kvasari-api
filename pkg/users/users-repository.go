@@ -19,7 +19,7 @@ type userRepository struct {
 	Connection *sql.DB
 }
 
-func NewUserRepository(connection *sql.DB) UserRepository {
+func NewRepository(connection *sql.DB) UserRepository {
 	return &userRepository{connection}
 }
 
