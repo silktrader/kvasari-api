@@ -11,6 +11,11 @@ type httpError struct {
 	Timestamp time.Time
 }
 
+type httpMessage struct {
+	Message   string
+	Timestamp time.Time
+}
+
 func Created(writer http.ResponseWriter, payload interface{}) {
 	encodeJSON(writer, http.StatusCreated, payload)
 }
@@ -24,8 +29,16 @@ func NoContent(writer http.ResponseWriter) {
 	writer.WriteHeader(http.StatusNoContent)
 }
 
+func NotFound(writer http.ResponseWriter, message string) {
+	encodeJSON(writer, http.StatusNotFound, httpMessage{message, time.Now()})
+}
+
 func BadRequest(writer http.ResponseWriter) {
 	writer.WriteHeader(http.StatusBadRequest)
+}
+
+func BadRequestWithMessage(writer http.ResponseWriter, message string) {
+	encodeJSON(writer, http.StatusBadRequest, httpMessage{message, time.Now()})
 }
 
 func InternalServerError(writer http.ResponseWriter, err error) {

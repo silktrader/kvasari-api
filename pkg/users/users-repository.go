@@ -8,11 +8,14 @@ import (
 )
 
 type UserRepository interface {
-	GetUsers() ([]User, error)
-	AddUser(data AddUserData) (*User, error)
+	GetAll() ([]User, error)
+	Register(data AddUserData) (*User, error)
 	ExistsUserId(id string) bool
-
-	UpdateUserName(userId string, data UpdateUserNameData) error
+	GetUserByAlias(alias string) (user User, err error)
+	UpdateName(userId string, name string) error
+	UpdateAlias(userId string, name string) error
+	IsFollowing(followerId string, targetId string) bool
+	Follow(followerId string, targetId string) error
 }
 
 type userRepository struct {
@@ -23,7 +26,7 @@ func NewRepository(connection *sql.DB) UserRepository {
 	return &userRepository{connection}
 }
 
-func (ur *userRepository) GetUsers() (users []User, err error) {
+func (ur *userRepository) GetAll() (users []User, err error) {
 	rows, err := ur.Connection.Query("select id, name, alias, email, created, updated from users")
 	if err != nil {
 		return nil, err
@@ -41,7 +44,14 @@ func (ur *userRepository) GetUsers() (users []User, err error) {
 			return users, err
 		}
 
-		users = append(users, User{id, name, alias, email, created, updated})
+		users = append(users, User{
+			ID:      id,
+			Alias:   alias,
+			Name:    name,
+			Email:   email,
+			Created: created,
+			Updated: updated,
+		})
 	}
 
 	if err = rows.Err(); err != nil {
@@ -55,28 +65,22 @@ func (ur *userRepository) GetUsers() (users []User, err error) {
 	return users, err
 }
 
-func (ur *userRepository) ExistsUserId(id string) bool {
+func (ur *userRepository) ExistsUserId(id string) (exists bool) {
 	// will return false in the absence of positive results
-	var exists = false
 	err := ur.Connection.QueryRow("select true from users where id = ?", id).Scan(&exists)
-	if err != nil {
-		return false
-	}
-	return exists
+	return err == nil && exists
 }
 
-//func (ur *userRepository) CheckAlias(alias string) (user User, err error) {
-//
-//	var id, name, alias, email string
-//	var created, updated time.Time
-//
-//	err = ur.Connection.QueryRow("select id, name, alias, email, created, updated from users").Scan(&id, &name, &alias, &)
-//	if err != nil {
-//		return nil, err
-//	}
-//}
+// GetUserByAlias either returns a user matching the alias, or an error, along with an empty struct.
+func (ur *userRepository) GetUserByAlias(alias string) (user User, err error) {
+	err = ur.Connection.QueryRow("SELECT id, name, email, created, updated FROM users WHERE alias = ?", alias).Scan(&user.ID, &user.Name, &user.Alias, &user.Created, &user.Updated)
+	if err != nil {
+		return User{}, err
+	}
+	return user, err
+}
 
-func (ur *userRepository) AddUser(data AddUserData) (user *User, err error) {
+func (ur *userRepository) Register(data AddUserData) (user *User, err error) {
 
 	// generate a new unique ID
 	id, err := uuid.NewV4()
@@ -106,11 +110,24 @@ func (ur *userRepository) AddUser(data AddUserData) (user *User, err error) {
 	}, nil
 }
 
-func (ur *userRepository) UpdateUserName(userId string, data UpdateUserNameData) error {
+func (ur *userRepository) UpdateName(userId string, name string) error {
 	// avoid using DB triggers for possible future storage switches
-	_, err := ur.Connection.Exec("UPDATE users SET name = ?, updated = ? WHERE id = ?", data.Name, time.Now(), userId)
-	if err != nil {
-		return err
-	}
-	return nil
+	_, err := ur.Connection.Exec("UPDATE users SET name = ?, updated = ? WHERE id = ?", name, time.Now(), userId)
+	return err
+}
+
+func (ur *userRepository) UpdateAlias(userId string, alias string) error {
+	// avoid using DB triggers for possible future storage switches
+	_, err := ur.Connection.Exec("UPDATE users SET alias = ?, updated = ? WHERE id = ?", alias, time.Now(), userId)
+	return err
+}
+
+func (ur *userRepository) IsFollowing(followerId string, targetId string) (exists bool) {
+	var err = ur.Connection.QueryRow("SELECT TRUE FROM followers WHERE follower = ? AND target = ?", followerId, targetId).Scan(&exists)
+	return err == nil && exists
+}
+
+func (ur *userRepository) Follow(followerId string, targetId string) error {
+	_, err := ur.Connection.Exec("INSERT INTO followers (follower, target, date) VALUES (?, ?, ?)", followerId, targetId, time.Now())
+	return err
 }

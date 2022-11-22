@@ -7,6 +7,7 @@ import (
 )
 
 var nameRules = []validation.Rule{validation.Required, validation.Length(5, 50)}
+var aliasRules = []validation.Rule{validation.Required, validation.Length(5, 16), is.UTFLetterNumeric}
 
 type User struct {
 	ID      string
@@ -26,17 +27,25 @@ type AddUserData struct {
 
 func (data *AddUserData) Validate() error {
 	return validation.ValidateStruct(data,
-		validation.Field(&data.Alias, validation.Required, validation.Length(5, 16), is.UTFLetterNumeric),
 		validation.Field(&data.Name, nameRules...),
+		validation.Field(&data.Alias, aliasRules...),
 		validation.Field(&data.Email, validation.Required, is.Email),
 		validation.Field(&data.Password, validation.Required, validation.Length(8, 50)),
 	)
 }
 
-type UpdateUserNameData struct {
+type UpdateNameData struct {
 	Name string
 }
 
-func (data *UpdateUserNameData) Validate() error {
+func (data *UpdateNameData) Validate() error {
 	return validation.ValidateStruct(data, validation.Field(&data.Name, nameRules...))
+}
+
+type UpdateAliasData struct {
+	Alias string
+}
+
+func (data *UpdateAliasData) Validate() error {
+	return validation.ValidateStruct(data, validation.Field(&data.Alias, aliasRules...))
 }
