@@ -35,5 +35,15 @@ CREATE TABLE
 		FOREIGN KEY (author_id) REFERENCES users (id)
 	);
 
+CREATE TABLE
+	IF NOT EXISTS followers (
+		follower TEXT NOT NULL,
+		target TEXT NOT NULL,
+		date	datetime NOT NULL,
+		CONSTRAINT follower_fk FOREIGN KEY (follower) REFERENCES users (id) ON DELETE CASCADE,
+		CONSTRAINT target_fk FOREIGN KEY (target) REFERENCES users (id) ON DELETE CASCADE,
+		CONSTRAINT follower_target_pk PRIMARY KEY (follower, target)
+	);
+
 COMMIT;
 `
