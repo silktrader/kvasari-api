@@ -9,13 +9,16 @@ import (
 
 type UserRepository interface {
 	GetAll() ([]User, error)
+	GetFollowers(userAlias string) ([]Follower, error)
 	Register(data AddUserData) (*User, error)
 	ExistsUserId(id string) bool
+	ExistsUserAlias(alias string) bool
 	GetUserByAlias(alias string) (user User, err error)
 	UpdateName(userId string, name string) error
 	UpdateAlias(userId string, name string) error
 	IsFollowing(followerId string, targetId string) bool
 	Follow(followerId string, targetId string) error
+	Unfollow(followerId string, targetId string) (bool, error)
 }
 
 type userRepository struct {
@@ -65,9 +68,45 @@ func (ur *userRepository) GetAll() (users []User, err error) {
 	return users, err
 }
 
+func (ur *userRepository) GetFollowers(userAlias string) ([]Follower, error) {
+
+	// initialise empty slice to avoid null serialisation; IDE complains about `[]Follower{}`
+	// tk ask about it
+	var followers = make([]Follower, 0)
+
+	rows, err := ur.Connection.Query("SELECT id, alias, name, email, date FROM (SELECT follower, date FROM followers WHERE target = (SELECT id FROM users WHERE users.alias = ?)) as fws JOIN users ON fws.follower = users.id", userAlias)
+	if err != nil {
+		return nil, err
+	}
+
+	for rows.Next() {
+		var follower Follower
+		if err = rows.Scan(&follower.ID, &follower.Alias, &follower.Name, &follower.Email, &follower.Followed); err != nil {
+			return followers, err
+		}
+		followers = append(followers, follower)
+	}
+
+	if err = rows.Err(); err != nil {
+		return followers, err
+	}
+
+	if err = rows.Close(); err != nil {
+		return followers, err
+	}
+
+	return followers, nil
+}
+
 func (ur *userRepository) ExistsUserId(id string) (exists bool) {
 	// will return false in the absence of positive results
-	err := ur.Connection.QueryRow("select true from users where id = ?", id).Scan(&exists)
+	err := ur.Connection.QueryRow("SELECT TRUE FROM users WHERE id = ?", id).Scan(&exists)
+	return err == nil && exists
+}
+
+func (ur *userRepository) ExistsUserAlias(alias string) (exists bool) {
+	// will return false in the absence of positive results
+	err := ur.Connection.QueryRow("SELECT TRUE FROM users WHERE alias = ?", alias).Scan(&exists)
 	return err == nil && exists
 }
 
@@ -130,4 +169,17 @@ func (ur *userRepository) IsFollowing(followerId string, targetId string) (exist
 func (ur *userRepository) Follow(followerId string, targetId string) error {
 	_, err := ur.Connection.Exec("INSERT INTO followers (follower, target, date) VALUES (?, ?, ?)", followerId, targetId, time.Now())
 	return err
+}
+
+// Unfollow returns true when users are properly unfollowed or an error otherwise.
+func (ur *userRepository) Unfollow(followerId string, targetId string) (bool, error) {
+	result, err := ur.Connection.Exec("DELETE FROM followers WHERE follower = ? AND target = ?", followerId, targetId)
+	if err != nil {
+		return false, err
+	}
+	unfollowed, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return unfollowed == 1, err
 }

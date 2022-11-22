@@ -25,6 +25,14 @@ type AddUserData struct {
 	Password string
 }
 
+type Follower struct {
+	ID       string
+	Alias    string
+	Name     string
+	Email    string
+	Followed time.Time
+}
+
 func (data *AddUserData) Validate() error {
 	return validation.ValidateStruct(data,
 		validation.Field(&data.Name, nameRules...),

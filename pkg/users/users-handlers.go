@@ -13,7 +13,13 @@ func RegisterHandlers(engine rest.Engine, ur UserRepository) {
 	// doesn't return a handler, as it's already present in the original scope
 	engine.Get("/users", getUsers(ur), auth.Auth(ur))
 	engine.Post("/users", addUser(ur))
+
+	// followers
+	engine.Get("/users/:alias/followers", getFollowers(ur)) // unauthorised
 	engine.Post("/users/:alias/followers", followUser(ur), auth.Auth(ur))
+	engine.Delete("/users/:target/followers/:follower", unfollowUser(ur), auth.Auth(ur))
+
+	// user details
 	engine.Put("/profile/name", updateName(ur), auth.Auth(ur))
 	engine.Put("/profile/alias", updateAlias(ur), auth.Auth(ur))
 }
@@ -28,6 +34,29 @@ func getUsers(ur UserRepository) http.HandlerFunc {
 			return
 		}
 		JSON.Ok(writer, users)
+	}
+}
+
+func getFollowers(ur UserRepository) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+
+		var targetAlias = httprouter.ParamsFromContext(request.Context()).ByName("alias")
+
+		// check whether the user exists for gracious feedback
+		var targetExists = ur.ExistsUserAlias(targetAlias)
+		if !targetExists {
+			JSON.BadRequestWithMessage(writer, fmt.Sprintf("User %s doesn't exist", targetAlias))
+			return
+		}
+
+		// populate the slice of followers
+		followers, err := ur.GetFollowers(targetAlias)
+		if err != nil {
+			JSON.InternalServerError(writer, err)
+			return
+		}
+
+		JSON.Ok(writer, followers)
 	}
 }
 
@@ -111,6 +140,8 @@ func followUser(ur UserRepository) http.HandlerFunc {
 		var followerId = auth.GetUserId(request)
 		var targetAlias = httprouter.ParamsFromContext(request.Context()).ByName("alias")
 
+		// tk attempt to sanitise input
+
 		// check whether alias exists and return its id
 		targetUser, err := ur.GetUserByAlias(targetAlias)
 		if err != nil {
@@ -139,5 +170,32 @@ func followUser(ur UserRepository) http.HandlerFunc {
 		}
 
 		JSON.NoContent(writer)
+	}
+}
+
+func unfollowUser(ur UserRepository) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+
+		var followerId = auth.GetUserId(request)
+		var targetAlias = httprouter.ParamsFromContext(request.Context()).ByName("target")
+
+		// tk attempt to sanitise input
+		// check whether alias exists and return its id
+		targetUser, err := ur.GetUserByAlias(targetAlias)
+		if err != nil {
+			JSON.NotFound(writer, fmt.Sprintf("User %s not found", targetAlias))
+			return
+		}
+
+		// the (debatable) alternative to making an extra round trip to the DB is to rely on a rows count when deleting
+		unfollowed, err := ur.Unfollow(followerId, targetUser.ID)
+
+		if unfollowed {
+			JSON.NoContent(writer)
+		} else if err != nil {
+			JSON.InternalServerError(writer, err)
+		} else {
+			JSON.BadRequestWithMessage(writer, fmt.Sprintf("You can't unfollow %s", targetAlias))
+		}
 	}
 }
