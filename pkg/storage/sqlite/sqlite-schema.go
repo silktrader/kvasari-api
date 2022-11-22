@@ -45,5 +45,15 @@ CREATE TABLE
 		CONSTRAINT follower_target_pk PRIMARY KEY (follower, target)
 	);
 
+CREATE TABLE
+	IF NOT EXISTS bans (
+		initiator TEXT NOT NULL,
+		banned TEXT NOT NULL,
+		date	datetime NOT NULL,
+		CONSTRAINT initiator_fk FOREIGN KEY (initiator) REFERENCES users (id) ON DELETE CASCADE,
+		CONSTRAINT banned_fk FOREIGN KEY (banned) REFERENCES users (id) ON DELETE CASCADE,
+		CONSTRAINT initiator_banned_pk PRIMARY KEY (initiator, banned)
+	);
+
 COMMIT;
 `
