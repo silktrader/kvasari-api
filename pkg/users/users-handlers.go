@@ -16,6 +16,8 @@ func RegisterHandlers(engine rest.Engine, ur UserRepository) {
 
 	// followers
 	engine.Get("/users/:alias/followers", getFollowers(ur)) // unauthorised
+	engine.Get("/me/followers", getSelfFollowers(ur), auth.Auth(ur))
+	
 	engine.Post("/users/:alias/followers", followUser(ur), auth.Auth(ur))
 	engine.Delete("/users/:target/followers/:follower", unfollowUser(ur), auth.Auth(ur))
 
@@ -51,6 +53,19 @@ func getFollowers(ur UserRepository) http.HandlerFunc {
 
 		// populate the slice of followers
 		followers, err := ur.GetFollowers(targetAlias)
+		if err != nil {
+			JSON.InternalServerError(writer, err)
+			return
+		}
+
+		JSON.Ok(writer, followers)
+	}
+}
+
+func getSelfFollowers(ur UserRepository) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+
+		followers, err := ur.GetFollowersById(auth.GetUserId(request))
 		if err != nil {
 			JSON.InternalServerError(writer, err)
 			return

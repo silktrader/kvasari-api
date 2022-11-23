@@ -10,6 +10,7 @@ import (
 type UserRepository interface {
 	GetAll() ([]User, error)
 	GetFollowers(userAlias string) ([]Follower, error)
+	GetFollowersById(id string) ([]Follower, error)
 	Register(data AddUserData) (*User, error)
 	ExistsUserId(id string) bool
 	ExistsUserAlias(alias string) bool
@@ -19,6 +20,7 @@ type UserRepository interface {
 	IsFollowing(followerId string, targetId string) bool
 	Follow(followerId string, targetId string) error
 	Unfollow(followerId string, targetId string) (bool, error)
+	Ban(initiatorId string, bannedId string) error
 }
 
 type userRepository struct {
@@ -71,7 +73,6 @@ func (ur *userRepository) GetAll() (users []User, err error) {
 func (ur *userRepository) GetFollowers(userAlias string) ([]Follower, error) {
 
 	// initialise empty slice to avoid null serialisation; IDE complains about `[]Follower{}`
-	// tk ask about it
 	var followers = make([]Follower, 0)
 
 	rows, err := ur.Connection.Query("SELECT id, alias, name, email, date FROM (SELECT follower, date FROM followers WHERE target = (SELECT id FROM users WHERE users.alias = ?)) as fws JOIN users ON fws.follower = users.id", userAlias)
@@ -90,12 +91,38 @@ func (ur *userRepository) GetFollowers(userAlias string) ([]Follower, error) {
 	if err = rows.Err(); err != nil {
 		return followers, err
 	}
-
 	if err = rows.Close(); err != nil {
 		return followers, err
 	}
 
 	return followers, nil
+}
+
+func (ur *userRepository) GetFollowersById(id string) ([]Follower, error) {
+
+	var followers = make([]Follower, 0)
+	rows, err := ur.Connection.Query("SELECT id, alias, name, email, date FROM (SELECT follower, date FROM followers WHERE target = ?) as fws JOIN users ON fws.follower = users.id", id)
+	if err != nil {
+		return nil, err
+	}
+
+	for rows.Next() {
+		var follower Follower
+		if err = rows.Scan(&follower.ID, &follower.Alias, &follower.Name, &follower.Email, &follower.Followed); err != nil {
+			return followers, err
+		}
+		followers = append(followers, follower)
+	}
+
+	if err = rows.Err(); err != nil {
+		return followers, err
+	}
+	if err = rows.Close(); err != nil {
+		return followers, err
+	}
+
+	return followers, nil
+
 }
 
 func (ur *userRepository) ExistsUserId(id string) (exists bool) {
@@ -182,4 +209,9 @@ func (ur *userRepository) Unfollow(followerId string, targetId string) (bool, er
 		return false, err
 	}
 	return unfollowed == 1, err
+}
+
+func (ur *userRepository) Ban(initiatorId string, bannedId string) error {
+	//_, err = ur.Connection.Exec("INSERT INTO bans ")
+	return nil
 }
