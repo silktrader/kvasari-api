@@ -12,32 +12,31 @@ import (
 2. adopt and maintain an interface as a dependency in the auth package
 */
 
-const userIdKey = "userId"
+const userKey = "user"
 
-type userChecker interface {
-	ExistsUserId(id string) bool
-}
+var authError = errors.New("missing or malformed authorisation header")
 
 // Auth performs ridiculously simple checks on routes, ensuring that requests include a valid user ID, as per project's specifications.
-func Auth(ur userChecker) func(next http.Handler) http.Handler {
+func Auth(ar Repository) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 
 			var id, err = parseBearer(request)
-
 			if err != nil {
 				reportUnauthorised(w)
 				return
 			}
 
-			// verify the user exists
-			if ur.ExistsUserId(id) {
-				// create a new context, stemming from the original one, adding the user's id for future reference
-				next.ServeHTTP(w, request.WithContext(context.WithValue(request.Context(), userIdKey, id)))
-			} else {
+			// in the (temporary) absence of actual authorisation, verify the user exists
+			// tk return pointer instead of user?
+			user, err := ar.GetUserById(id)
+			if err != nil {
 				reportUnauthorised(w)
+				return
 			}
 
+			// create a new context, stemming from the original one, adding the user's details for future reference
+			next.ServeHTTP(w, request.WithContext(context.WithValue(request.Context(), userKey, user)))
 		})
 	}
 }
@@ -54,15 +53,21 @@ func parseBearer(request *http.Request) (string, error) {
 	return "", errors.New("bad authorization header")
 }
 
-// GetUserId fetches the user's ID from the authorisation header, assuming the handler includes auth middleware.
-func GetUserId(request *http.Request) string {
+// GetUser fetches the user's ID from the authorisation header, assuming the handler includes auth middleware.
+func GetUser(request *http.Request) User {
 	// one could return an error to detect a possibly missing auth middleware
 	// but this is an exceptional occurrence stemming from careless auth configuration
-	var id = request.Context().Value(userIdKey)
-	if id == nil {
-		panic(errors.New("missing or malformed authorisation header"))
+	var userValue = request.Context().Value(userKey)
+	if userValue == nil {
+		panic(authError)
+
 	}
-	return id.(string)
+
+	user, ok := userValue.(User)
+	if !ok {
+		panic(authError)
+	}
+	return user
 }
 
 func reportUnauthorised(w http.ResponseWriter) {

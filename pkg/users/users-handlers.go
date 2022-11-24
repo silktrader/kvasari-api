@@ -9,21 +9,24 @@ import (
 	"net/http"
 )
 
-func RegisterHandlers(engine rest.Engine, ur UserRepository) {
+func RegisterHandlers(engine rest.Engine, ur UserRepository, ar auth.Repository) {
 	// doesn't return a handler, as it's already present in the original scope
-	engine.Get("/users", getUsers(ur), auth.Auth(ur))
+	engine.Get("/users", getUsers(ur), auth.Auth(ar))
 	engine.Post("/users", addUser(ur))
 
 	// followers
 	engine.Get("/users/:alias/followers", getFollowers(ur)) // unauthorised
-	engine.Get("/me/followers", getSelfFollowers(ur), auth.Auth(ur))
-	
-	engine.Post("/users/:alias/followers", followUser(ur), auth.Auth(ur))
-	engine.Delete("/users/:target/followers/:follower", unfollowUser(ur), auth.Auth(ur))
+	engine.Get("/me/followers", getSelfFollowers(ur), auth.Auth(ar))
+
+	engine.Put("/users/:alias/followers/:followerAlias", followUser(ur), auth.Auth(ar))
+	engine.Delete("/users/:target/followers/:follower", unfollowUser(ur), auth.Auth(ar))
+
+	// bans
+	engine.Post("/users/:alias/bans", banUser(ur), auth.Auth(ar))
 
 	// user details
-	engine.Put("/profile/name", updateName(ur), auth.Auth(ur))
-	engine.Put("/profile/alias", updateAlias(ur), auth.Auth(ur))
+	engine.Put("/profile/name", updateName(ur), auth.Auth(ar))
+	engine.Put("/profile/alias", updateAlias(ur), auth.Auth(ar))
 }
 
 // getUsers fetches all existing users. As neither authorisation nor authentication are required; this is clearly a temporary
@@ -65,7 +68,7 @@ func getFollowers(ur UserRepository) http.HandlerFunc {
 func getSelfFollowers(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
-		followers, err := ur.GetFollowersById(auth.GetUserId(request))
+		followers, err := ur.GetFollowersById(auth.GetUser(request).Id)
 		if err != nil {
 			JSON.InternalServerError(writer, err)
 			return
@@ -97,15 +100,17 @@ func addUser(ur UserRepository) http.HandlerFunc {
 func updateName(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
-		var userId = auth.GetUserId(request)
-
+		// validate data first
 		var data UpdateNameData
 		if err := JSON.DecodeValidate(request, &data); err != nil {
 			JSON.ValidationError(writer, err)
 			return
 		}
 
-		if err := ur.UpdateName(userId, data.Name); err != nil {
+		// then attempt to perform the operation
+		var user = auth.GetUser(request)
+
+		if err := ur.UpdateName(user.Id, data.Name); err != nil {
 			JSON.InternalServerError(writer, err)
 			return
 		}
@@ -117,7 +122,7 @@ func updateName(ur UserRepository) http.HandlerFunc {
 func updateAlias(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
-		var userId = auth.GetUserId(request)
+		var authUser = auth.GetUser(request)
 
 		var data UpdateAliasData
 		if err := JSON.DecodeValidate(request, &data); err != nil {
@@ -128,9 +133,9 @@ func updateAlias(ur UserRepository) http.HandlerFunc {
 		// the database ensures uniqueness of aliases, but a specific error would be useful for the frontend
 		existingUser, err := ur.GetUserByAlias(data.Alias)
 
-		// user alias not found, proceed with the change
+		// authUser alias not found, proceed with the change
 		if err != nil {
-			err = ur.UpdateAlias(userId, data.Alias)
+			err = ur.UpdateAlias(authUser.Alias, data.Alias)
 			if err != nil {
 				JSON.InternalServerError(writer, err)
 				return
@@ -139,8 +144,8 @@ func updateAlias(ur UserRepository) http.HandlerFunc {
 			return
 		}
 
-		// the user is attempting to change his own alias to its old alias
-		if existingUser.ID == userId {
+		// the authUser is attempting to change his own alias to its old alias
+		if existingUser.ID == authUser.Id {
 			JSON.BadRequestWithMessage(writer, "New and old aliases coincide")
 			return
 		}
@@ -152,10 +157,31 @@ func updateAlias(ur UserRepository) http.HandlerFunc {
 func followUser(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
-		var followerId = auth.GetUserId(request)
-		var targetAlias = httprouter.ParamsFromContext(request.Context()).ByName("alias")
+		// fetch aliases and short circuit handler when these are malformed to avoid DB round trips
+		var followerAlias = httprouter.ParamsFromContext(request.Context()).ByName("followerAlias")
+		if err := ValidateUserAlias(followerAlias); err != nil {
+			JSON.ValidationError(writer, err)
+			return
+		}
 
-		// tk attempt to sanitise input
+		// tk export fetch and validate?
+		var targetAlias = httprouter.ParamsFromContext(request.Context()).ByName("alias")
+		if err := ValidateUserAlias(targetAlias); err != nil {
+			JSON.ValidationError(writer, err)
+			return
+		}
+
+		// debatable step, unnecessary without the additional double alias requirement, ie. followerAlias, targetAlias
+		follower, err := ur.GetUserByAlias(followerAlias)
+		if err != nil {
+			JSON.NotFound(writer, fmt.Sprintf("User %s not found", targetAlias))
+			return
+		}
+
+		if follower.ID != auth.GetUser(request).Id {
+			JSON.Unauthorised(writer)
+			return
+		}
 
 		// check whether alias exists and return its id
 		targetUser, err := ur.GetUserByAlias(targetAlias)
@@ -164,21 +190,21 @@ func followUser(ur UserRepository) http.HandlerFunc {
 			return
 		}
 
-		if targetUser.ID == followerId {
-			JSON.BadRequestWithMessage(writer, fmt.Sprintf("Narcissistic request: You can't follow yourself"))
-			return
-		}
+		//if targetUser.ID == followerId {
+		//	JSON.BadRequestWithMessage(writer, fmt.Sprintf("Narcissistic request: You can't follow yourself"))
+		//	return
+		//}
 
 		// check whether the user already follows the target to disambiguate between errors
 		// requires one more trip to the database
 		// tk CHECK WHETHER USER BANS OTHER USER
-		if ur.IsFollowing(followerId, targetUser.ID) {
-			JSON.BadRequestWithMessage(writer, fmt.Sprintf("You already follow %s", targetAlias))
-			return
-		}
+		//if ur.IsFollowing(followerId, targetUser.ID) {
+		//	JSON.BadRequestWithMessage(writer, fmt.Sprintf("You already follow %s", targetAlias))
+		//	return
+		//}
 
 		// attempt to follow the user
-		err = ur.Follow(followerId, targetUser.ID)
+		err = ur.Follow(follower.ID, targetUser.ID)
 		if err != nil {
 			JSON.InternalServerError(writer, fmt.Errorf("error while following %s: %w", targetAlias, err))
 			return
@@ -191,7 +217,7 @@ func followUser(ur UserRepository) http.HandlerFunc {
 func unfollowUser(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
-		var followerId = auth.GetUserId(request)
+		var followerId = auth.GetUser(request).Id
 		var targetAlias = httprouter.ParamsFromContext(request.Context()).ByName("target")
 
 		// tk attempt to sanitise input
@@ -212,5 +238,13 @@ func unfollowUser(ur UserRepository) http.HandlerFunc {
 		} else {
 			JSON.BadRequestWithMessage(writer, fmt.Sprintf("You can't unfollow %s", targetAlias))
 		}
+	}
+}
+
+func banUser(ur UserRepository) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+
+		// ensure the source user ID matches the authenticated one
+		//if auth.GetUserId(request) != httprouter.ParamsFromContext(request.Context()).ByName("alias")
 	}
 }

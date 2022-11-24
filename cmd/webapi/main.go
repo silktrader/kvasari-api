@@ -30,6 +30,7 @@ import (
 	"github.com/ardanlabs/conf"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/silktrader/kvasari/pkg/artworks"
+	"github.com/silktrader/kvasari/pkg/auth"
 	"github.com/silktrader/kvasari/pkg/globaltime"
 	"github.com/silktrader/kvasari/pkg/rest"
 	"github.com/silktrader/kvasari/pkg/storage/sqlite"
@@ -111,11 +112,13 @@ func run() error {
 	handler := e.Handler()
 
 	// setup handlers
+	// tk look into passing pointers
+	var authRepository = auth.NewRepository(storage)
 	var usersRepository = users.NewRepository(storage)
 	var artworksRepository = artworks.NewRepository(storage)
-	
-	users.RegisterHandlers(e, usersRepository)
-	artworks.RegisterHandlers(e, artworksRepository, usersRepository)
+
+	users.RegisterHandlers(e, usersRepository, authRepository)
+	artworks.RegisterHandlers(e, artworksRepository, authRepository)
 
 	handler, err = registerWebUI(handler)
 	if err != nil {

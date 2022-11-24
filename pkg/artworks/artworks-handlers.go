@@ -5,14 +5,13 @@ import (
 	"github.com/silktrader/kvasari/pkg/auth"
 	JSON "github.com/silktrader/kvasari/pkg/json-utilities"
 	"github.com/silktrader/kvasari/pkg/rest"
-	"github.com/silktrader/kvasari/pkg/users"
 	"net/http"
 	"time"
 )
 
-func RegisterHandlers(engine rest.Engine, ar ArtworkRepository, ur users.UserRepository) {
-	engine.Post("/artworks", addArtwork(ar), auth.Auth(ur))
-	engine.Delete("/artworks/:id", deleteArtwork(ar), auth.Auth(ur))
+func RegisterHandlers(engine rest.Engine, ar ArtworkRepository, aur auth.Repository) {
+	engine.Post("/artworks", addArtwork(ar), auth.Auth(aur))
+	engine.Delete("/artworks/:id", deleteArtwork(ar), auth.Auth(aur))
 }
 
 func addArtwork(ar ArtworkRepository) http.HandlerFunc {
@@ -25,9 +24,7 @@ func addArtwork(ar ArtworkRepository) http.HandlerFunc {
 			return
 		}
 
-		var userId = auth.GetUserId(request)
-
-		id, updated, err := ar.AddArtwork(data, userId)
+		id, updated, err := ar.AddArtwork(data, auth.GetUser(request).Id)
 		if err != nil {
 			JSON.InternalServerError(writer, err)
 		}
@@ -45,7 +42,6 @@ func addArtwork(ar ArtworkRepository) http.HandlerFunc {
 func deleteArtwork(ar ArtworkRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
-		var userId = auth.GetUserId(request)
 		var artworkId = httprouter.ParamsFromContext(request.Context()).ByName("id")
 
 		if artworkId == "" {
@@ -54,7 +50,7 @@ func deleteArtwork(ar ArtworkRepository) http.HandlerFunc {
 		}
 
 		// issues a bad request regardless of authorisation issues to deny information about existing resources
-		if deleted := ar.DeleteArtwork(artworkId, userId); deleted {
+		if deleted := ar.DeleteArtwork(artworkId, auth.GetUser(request).Id); deleted {
 			JSON.NoContent(writer)
 		} else {
 			JSON.BadRequest(writer)

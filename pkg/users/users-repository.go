@@ -14,6 +14,7 @@ type UserRepository interface {
 	Register(data AddUserData) (*User, error)
 	ExistsUserId(id string) bool
 	ExistsUserAlias(alias string) bool
+	GetUserById(id string) (user User, err error)
 	GetUserByAlias(alias string) (user User, err error)
 	UpdateName(userId string, name string) error
 	UpdateAlias(userId string, name string) error
@@ -137,13 +138,22 @@ func (ur *userRepository) ExistsUserAlias(alias string) (exists bool) {
 	return err == nil && exists
 }
 
-// GetUserByAlias either returns a user matching the alias, or an error, along with an empty struct.
+// GetUserByAlias either returns a user matching the alias, or an error (along with an ignorable empty struct).
 func (ur *userRepository) GetUserByAlias(alias string) (user User, err error) {
 	err = ur.Connection.QueryRow("SELECT id, name, email, created, updated FROM users WHERE alias = ?", alias).Scan(&user.ID, &user.Name, &user.Alias, &user.Created, &user.Updated)
 	if err != nil {
 		return User{}, err
 	}
-	return user, err
+	return user, nil
+}
+
+// GetUserById either returns a user matching the id, or an error (along with an ignorable empty struct).
+func (ur *userRepository) GetUserById(id string) (user User, err error) {
+	// if the query selects no rows, *Row's `Scan` will return ErrNoRows
+	if err = ur.Connection.QueryRow("SELECT id, name, email, created, updated FROM users WHERE id = ?", id).Scan(&user.ID, &user.Name, &user.Alias, &user.Created, &user.Updated); err != nil {
+		return user, err
+	}
+	return user, nil
 }
 
 func (ur *userRepository) Register(data AddUserData) (user *User, err error) {

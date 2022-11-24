@@ -57,3 +57,7 @@ type UpdateAliasData struct {
 func (data *UpdateAliasData) Validate() error {
 	return validation.ValidateStruct(data, validation.Field(&data.Alias, aliasRules...))
 }
+
+func ValidateUserAlias(alias string) error {
+	return validation.Validate(alias, aliasRules...)
+}
