@@ -10,7 +10,7 @@ var nameRules = []validation.Rule{validation.Required, validation.Length(5, 50)}
 var aliasRules = []validation.Rule{validation.Required, validation.Length(5, 16), is.UTFLetterNumeric}
 
 type User struct {
-	ID      string
+	Id      string
 	Alias   string
 	Name    string
 	Email   string
@@ -60,4 +60,12 @@ func (data *UpdateAliasData) Validate() error {
 
 func ValidateUserAlias(alias string) error {
 	return validation.Validate(alias, aliasRules...)
+}
+
+type BanUserData struct {
+	TargetAlias string
+}
+
+func (data *BanUserData) Validate() error {
+	return validation.ValidateStruct(data, validation.Field(&data.TargetAlias, aliasRules...))
 }

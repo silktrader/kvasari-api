@@ -21,7 +21,7 @@ type UserRepository interface {
 	IsFollowing(followerId string, targetId string) bool
 	Follow(followerId string, targetId string) error
 	Unfollow(followerId string, targetId string) (bool, error)
-	Ban(initiatorId string, bannedId string) error
+	Ban(sourceId string, targetId string) (bool, error)
 }
 
 type userRepository struct {
@@ -51,7 +51,7 @@ func (ur *userRepository) GetAll() (users []User, err error) {
 		}
 
 		users = append(users, User{
-			ID:      id,
+			Id:      id,
 			Alias:   alias,
 			Name:    name,
 			Email:   email,
@@ -140,7 +140,7 @@ func (ur *userRepository) ExistsUserAlias(alias string) (exists bool) {
 
 // GetUserByAlias either returns a user matching the alias, or an error (along with an ignorable empty struct).
 func (ur *userRepository) GetUserByAlias(alias string) (user User, err error) {
-	err = ur.Connection.QueryRow("SELECT id, name, email, created, updated FROM users WHERE alias = ?", alias).Scan(&user.ID, &user.Name, &user.Alias, &user.Created, &user.Updated)
+	err = ur.Connection.QueryRow("SELECT id, name, email, created, updated FROM users WHERE alias = ?", alias).Scan(&user.Id, &user.Name, &user.Alias, &user.Created, &user.Updated)
 	if err != nil {
 		return User{}, err
 	}
@@ -150,7 +150,7 @@ func (ur *userRepository) GetUserByAlias(alias string) (user User, err error) {
 // GetUserById either returns a user matching the id, or an error (along with an ignorable empty struct).
 func (ur *userRepository) GetUserById(id string) (user User, err error) {
 	// if the query selects no rows, *Row's `Scan` will return ErrNoRows
-	if err = ur.Connection.QueryRow("SELECT id, name, email, created, updated FROM users WHERE id = ?", id).Scan(&user.ID, &user.Name, &user.Alias, &user.Created, &user.Updated); err != nil {
+	if err = ur.Connection.QueryRow("SELECT id, name, email, created, updated FROM users WHERE id = ?", id).Scan(&user.Id, &user.Name, &user.Alias, &user.Created, &user.Updated); err != nil {
 		return user, err
 	}
 	return user, nil
@@ -158,7 +158,7 @@ func (ur *userRepository) GetUserById(id string) (user User, err error) {
 
 func (ur *userRepository) Register(data AddUserData) (user *User, err error) {
 
-	// generate a new unique ID
+	// generate a new unique Id
 	id, err := uuid.NewV4()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate a unique user id for %q: %w", data.Alias, err)
@@ -221,7 +221,15 @@ func (ur *userRepository) Unfollow(followerId string, targetId string) (bool, er
 	return unfollowed == 1, err
 }
 
-func (ur *userRepository) Ban(initiatorId string, bannedId string) error {
-	//_, err = ur.Connection.Exec("INSERT INTO bans ")
-	return nil
+// Ban will return true for successful bans, false when no new bans are detected, or an error when the operation fails.
+func (ur *userRepository) Ban(sourceId string, targetId string) (bool, error) {
+	res, err := ur.Connection.Exec("INSERT INTO bans (source, target, date) VALUES (?, ?, ?)", sourceId, targetId, time.Now())
+	if err != nil {
+		return false, err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return affected == 1, nil
 }

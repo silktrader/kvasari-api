@@ -127,7 +127,7 @@ func sameSchemaMap(first, second map[string]string) bool {
 
 // getConnectionString provides a configuration string that enables foreign keys constraints
 func getConnectionString(path string) string {
-	return path + "?fk=true"
+	return path + "?_fk=on"
 }
 
 func Close(logger *logrus.Logger) {

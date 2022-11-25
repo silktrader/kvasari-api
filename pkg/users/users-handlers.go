@@ -145,7 +145,7 @@ func updateAlias(ur UserRepository) http.HandlerFunc {
 		}
 
 		// the authUser is attempting to change his own alias to its old alias
-		if existingUser.ID == authUser.Id {
+		if existingUser.Id == authUser.Id {
 			JSON.BadRequestWithMessage(writer, "New and old aliases coincide")
 			return
 		}
@@ -178,7 +178,7 @@ func followUser(ur UserRepository) http.HandlerFunc {
 			return
 		}
 
-		if follower.ID != auth.GetUser(request).Id {
+		if follower.Id != auth.GetUser(request).Id {
 			JSON.Unauthorised(writer)
 			return
 		}
@@ -190,7 +190,7 @@ func followUser(ur UserRepository) http.HandlerFunc {
 			return
 		}
 
-		//if targetUser.ID == followerId {
+		//if targetUser.Id == followerId {
 		//	JSON.BadRequestWithMessage(writer, fmt.Sprintf("Narcissistic request: You can't follow yourself"))
 		//	return
 		//}
@@ -198,13 +198,13 @@ func followUser(ur UserRepository) http.HandlerFunc {
 		// check whether the user already follows the target to disambiguate between errors
 		// requires one more trip to the database
 		// tk CHECK WHETHER USER BANS OTHER USER
-		//if ur.IsFollowing(followerId, targetUser.ID) {
+		//if ur.IsFollowing(followerId, targetUser.Id) {
 		//	JSON.BadRequestWithMessage(writer, fmt.Sprintf("You already follow %s", targetAlias))
 		//	return
 		//}
 
 		// attempt to follow the user
-		err = ur.Follow(follower.ID, targetUser.ID)
+		err = ur.Follow(follower.Id, targetUser.Id)
 		if err != nil {
 			JSON.InternalServerError(writer, fmt.Errorf("error while following %s: %w", targetAlias, err))
 			return
@@ -229,7 +229,7 @@ func unfollowUser(ur UserRepository) http.HandlerFunc {
 		}
 
 		// the (debatable) alternative to making an extra round trip to the DB is to rely on a rows count when deleting
-		unfollowed, err := ur.Unfollow(followerId, targetUser.ID)
+		unfollowed, err := ur.Unfollow(followerId, targetUser.Id)
 
 		if unfollowed {
 			JSON.NoContent(writer)
@@ -244,7 +244,46 @@ func unfollowUser(ur UserRepository) http.HandlerFunc {
 func banUser(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
-		// ensure the source user ID matches the authenticated one
-		//if auth.GetUserId(request) != httprouter.ParamsFromContext(request.Context()).ByName("alias")
+		var source = auth.GetUser(request)
+
+		// ensure that the banning user matches the authenticated one
+		if source.Alias != httprouter.ParamsFromContext(request.Context()).ByName("alias") {
+			JSON.Unauthorised(writer)
+			return
+		}
+
+		// validate target user alias
+		var data BanUserData
+		if err := JSON.DecodeValidate(request, &data); err != nil {
+			JSON.ValidationError(writer, err)
+			return
+		}
+
+		// avoid self bans
+		if source.Alias == data.TargetAlias {
+			JSON.BadRequestWithMessage(writer, "Can't ban oneself")
+			return
+		}
+
+		// ensure the target exists to provide specific errors
+		targetUser, err := ur.GetUserByAlias(data.TargetAlias)
+		if err != nil {
+			JSON.BadRequestWithMessage(writer, fmt.Sprintf("User %s doesn't exist", data.TargetAlias))
+			return
+		}
+
+		// attempt to ban
+		banned, err := ur.Ban(source.Id, targetUser.Id)
+		if err != nil {
+			JSON.InternalServerError(writer, err)
+			return
+		}
+
+		if banned {
+			JSON.NoContent(writer)
+		} else {
+			JSON.BadRequest(writer)
+		}
+
 	}
 }
