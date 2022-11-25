@@ -2,8 +2,10 @@ package users
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"github.com/gofrs/uuid"
+	"github.com/mattn/go-sqlite3"
 	"time"
 )
 
@@ -19,7 +21,7 @@ type UserRepository interface {
 	UpdateName(userId string, name string) error
 	UpdateAlias(userId string, name string) error
 	IsFollowing(followerId string, targetId string) bool
-	Follow(followerId string, targetId string) error
+	FollowAlias(followerId string, targetAlias string) error
 	Unfollow(followerId string, targetId string) (bool, error)
 	Ban(sourceId string, targetId string) (bool, error)
 }
@@ -27,6 +29,11 @@ type UserRepository interface {
 type userRepository struct {
 	Connection *sql.DB
 }
+
+var (
+	ErrFollowDuplicate = errors.New("user already follows target")
+	ErrNotFound        = errors.New("user not found")
+)
 
 func NewRepository(connection *sql.DB) UserRepository {
 	return &userRepository{connection}
@@ -203,8 +210,31 @@ func (ur *userRepository) IsFollowing(followerId string, targetId string) (exist
 	return err == nil && exists
 }
 
-func (ur *userRepository) Follow(followerId string, targetId string) error {
-	_, err := ur.Connection.Exec("INSERT INTO followers (follower, target, date) VALUES (?, ?, ?)", followerId, targetId, time.Now())
+func (ur *userRepository) FollowAlias(followerId string, targetAlias string) error {
+	res, err := ur.Connection.Exec(
+		"INSERT INTO followers (follower, target, date) SELECT ?, id as targetId, datetime('now') FROM users WHERE alias = ? AND ? NOT IN (SELECT target FROM bans WHERE source = targetId)",
+		followerId,
+		targetAlias,
+		followerId,
+	)
+
+	// detects whether the requester is already among the target's followers
+	if sqliteErr, ok := err.(sqlite3.Error); ok {
+		if sqliteErr.ExtendedCode == sqlite3.ErrConstraintPrimaryKey {
+			return ErrFollowDuplicate
+		}
+	}
+
+	// unspecified error occurred, should be handled as 50x
+	if err != nil {
+		return err
+	}
+
+	// when no rows are affected the requester was either banned or the target user doesn't exist
+	rows, err := res.RowsAffected()
+	if rows != 1 {
+		return ErrNotFound
+	}
 	return err
 }
 
@@ -223,7 +253,13 @@ func (ur *userRepository) Unfollow(followerId string, targetId string) (bool, er
 
 // Ban will return true for successful bans, false when no new bans are detected, or an error when the operation fails.
 func (ur *userRepository) Ban(sourceId string, targetId string) (bool, error) {
-	res, err := ur.Connection.Exec("INSERT INTO bans (source, target, date) VALUES (?, ?, ?)", sourceId, targetId, time.Now())
+	var query = `
+		BEGIN TRANSACTION;
+		INSERT INTO bans (source, target, date) VALUES (?, ?, ?);
+		DELETE FROM followers WHERE follower = ? AND target = ?;
+		COMMIT;
+	`
+	res, err := ur.Connection.Exec(query, sourceId, targetId, time.Now(), targetId, sourceId)
 	if err != nil {
 		return false, err
 	}
@@ -231,5 +267,11 @@ func (ur *userRepository) Ban(sourceId string, targetId string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return affected == 1, nil
+	return affected > 0, nil
+}
+
+func (ur *userRepository) IsBanning(sourceId string, targetId string) (isBanning bool) {
+	var err = ur.Connection.QueryRow("SELECT TRUE FROM bans WHERE source = ? AND target = ?", sourceId, targetId).Scan(&isBanning)
+	return err == nil && isBanning
+
 }

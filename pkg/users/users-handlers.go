@@ -18,7 +18,7 @@ func RegisterHandlers(engine rest.Engine, ur UserRepository, ar auth.Repository)
 	engine.Get("/users/:alias/followers", getFollowers(ur)) // unauthorised
 	engine.Get("/me/followers", getSelfFollowers(ur), auth.Auth(ar))
 
-	engine.Put("/users/:alias/followers/:followerAlias", followUser(ur), auth.Auth(ar))
+	engine.Post("/users/:alias/followed", followUser(ur), auth.Auth(ar))
 	engine.Delete("/users/:target/followers/:follower", unfollowUser(ur), auth.Auth(ar))
 
 	// bans
@@ -157,60 +157,40 @@ func updateAlias(ur UserRepository) http.HandlerFunc {
 func followUser(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
-		// fetch aliases and short circuit handler when these are malformed to avoid DB round trips
-		var followerAlias = httprouter.ParamsFromContext(request.Context()).ByName("followerAlias")
-		if err := ValidateUserAlias(followerAlias); err != nil {
-			JSON.ValidationError(writer, err)
-			return
-		}
-
-		// tk export fetch and validate?
-		var targetAlias = httprouter.ParamsFromContext(request.Context()).ByName("alias")
-		if err := ValidateUserAlias(targetAlias); err != nil {
-			JSON.ValidationError(writer, err)
-			return
-		}
-
-		// debatable step, unnecessary without the additional double alias requirement, ie. followerAlias, targetAlias
-		follower, err := ur.GetUserByAlias(followerAlias)
-		if err != nil {
-			JSON.NotFound(writer, fmt.Sprintf("User %s not found", targetAlias))
-			return
-		}
-
-		if follower.Id != auth.GetUser(request).Id {
+		// ensure that the follower's alias matches the authenticated user's
+		var follower = auth.GetUser(request)
+		if follower.Alias != httprouter.ParamsFromContext(request.Context()).ByName("alias") {
 			JSON.Unauthorised(writer)
 			return
 		}
 
-		// check whether alias exists and return its id
-		targetUser, err := ur.GetUserByAlias(targetAlias)
-		if err != nil {
-			JSON.NotFound(writer, fmt.Sprintf("User %s not found", targetAlias))
+		// validate target's alias
+		var data FollowUserData
+		if err := JSON.DecodeValidate(request, &data); err != nil {
+			JSON.ValidationError(writer, err)
 			return
 		}
 
-		//if targetUser.Id == followerId {
-		//	JSON.BadRequestWithMessage(writer, fmt.Sprintf("Narcissistic request: You can't follow yourself"))
-		//	return
-		//}
-
-		// check whether the user already follows the target to disambiguate between errors
-		// requires one more trip to the database
-		// tk CHECK WHETHER USER BANS OTHER USER
-		//if ur.IsFollowing(followerId, targetUser.Id) {
-		//	JSON.BadRequestWithMessage(writer, fmt.Sprintf("You already follow %s", targetAlias))
-		//	return
-		//}
-
-		// attempt to follow the user
-		err = ur.Follow(follower.Id, targetUser.Id)
-		if err != nil {
-			JSON.InternalServerError(writer, fmt.Errorf("error while following %s: %w", targetAlias, err))
+		// short circuit handler when the target and the source match
+		if follower.Alias == data.TargetAlias {
+			JSON.BadRequestWithMessage(writer, "Narcissistic request: can't follow oneself")
 			return
 		}
 
-		JSON.NoContent(writer)
+		// attempt to follow the user and fail when:
+		// - the follower already follows the target (ErrFollowDuplicate)
+		// - no user matches the target alias (ErrNotFound)
+		// - the target is banning the requester (a debatable ErrNotFound)
+		switch err := ur.FollowAlias(follower.Id, data.TargetAlias); err {
+		case nil:
+			JSON.NoContent(writer)
+		case ErrFollowDuplicate:
+			JSON.BadRequestWithMessage(writer, err.Error())
+		case ErrNotFound:
+			JSON.NotFound(writer, err.Error())
+		default:
+			JSON.InternalServerError(writer, err)
+		}
 	}
 }
 
@@ -272,7 +252,7 @@ func banUser(ur UserRepository) http.HandlerFunc {
 			return
 		}
 
-		// attempt to ban
+		// attempt to ban, which will result in targets following the source to stop doing so
 		banned, err := ur.Ban(source.Id, targetUser.Id)
 		if err != nil {
 			JSON.InternalServerError(writer, err)

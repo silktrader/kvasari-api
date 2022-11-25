@@ -25,14 +25,6 @@ type AddUserData struct {
 	Password string
 }
 
-type Follower struct {
-	ID       string
-	Alias    string
-	Name     string
-	Email    string
-	Followed time.Time
-}
-
 func (data *AddUserData) Validate() error {
 	return validation.ValidateStruct(data,
 		validation.Field(&data.Name, nameRules...),
@@ -62,10 +54,30 @@ func ValidateUserAlias(alias string) error {
 	return validation.Validate(alias, aliasRules...)
 }
 
+// Bans
+
 type BanUserData struct {
 	TargetAlias string
 }
 
 func (data *BanUserData) Validate() error {
+	return validation.ValidateStruct(data, validation.Field(&data.TargetAlias, aliasRules...))
+}
+
+// Followers
+
+type Follower struct {
+	ID       string
+	Alias    string
+	Name     string
+	Email    string
+	Followed time.Time
+}
+
+type FollowUserData struct {
+	TargetAlias string
+}
+
+func (data *FollowUserData) Validate() error {
 	return validation.ValidateStruct(data, validation.Field(&data.TargetAlias, aliasRules...))
 }
