@@ -11,8 +11,6 @@ import (
 
 type UserRepository interface {
 	GetAll() ([]User, error)
-	GetFollowers(userAlias string) ([]Follower, error)
-	GetFollowersById(id string) ([]Follower, error)
 	Register(data AddUserData) (*User, error)
 	ExistsUserId(id string) bool
 	ExistsUserAlias(alias string) bool
@@ -20,10 +18,15 @@ type UserRepository interface {
 	GetUserByAlias(alias string) (user User, err error)
 	UpdateName(userId string, name string) error
 	UpdateAlias(userId string, name string) error
+
 	IsFollowing(followerId string, targetId string) bool
 	Follow(followerId string, targetAlias string) error
 	Unfollow(followerId string, targetAlias string) error
-	Ban(sourceId string, targetId string) (bool, error)
+	GetFollowers(userAlias string) ([]Follower, error)
+	GetFollowersById(id string) ([]Follower, error)
+
+	Ban(sourceId string, targetAlias string) error
+	GetBans(sourceId string) ([]BannedUser, error)
 }
 
 type userRepository struct {
@@ -31,8 +34,9 @@ type userRepository struct {
 }
 
 var (
-	ErrFollowDuplicate = errors.New("user already follows target")
-	ErrNotFound        = errors.New("user not found")
+	ErrDupFollower = errors.New("user already follows target")
+	ErrNotFound    = errors.New("user not found")
+	ErrDupBan      = errors.New("user is already banned")
 )
 
 func NewRepository(connection *sql.DB) UserRepository {
@@ -221,7 +225,7 @@ func (ur *userRepository) Follow(followerId string, targetAlias string) error {
 	// detects whether the requester is already among the target's followers
 	if sqliteErr, ok := err.(sqlite3.Error); ok {
 		if sqliteErr.ExtendedCode == sqlite3.ErrConstraintPrimaryKey {
-			return ErrFollowDuplicate
+			return ErrDupFollower
 		}
 	}
 
@@ -256,26 +260,76 @@ func (ur *userRepository) Unfollow(followerId string, targetAlias string) error 
 }
 
 // Ban will return true for successful bans, false when no new bans are detected, or an error when the operation fails.
-func (ur *userRepository) Ban(sourceId string, targetId string) (bool, error) {
-	var query = `
-		BEGIN TRANSACTION;
-		INSERT INTO bans (source, target, date) VALUES (?, ?, ?);
-		DELETE FROM followers WHERE follower = ? AND target = ?;
-		COMMIT;
-	`
-	res, err := ur.Connection.Exec(query, sourceId, targetId, time.Now(), targetId, sourceId)
+func (ur *userRepository) Ban(sourceId string, targetAlias string) error {
+	tx, err := ur.Connection.Begin()
 	if err != nil {
-		return false, err
+		return err
 	}
+
+	// rolling back after a transaction commit will result in a safe NOP
+	defer tx.Rollback()
+
+	// the INSERT must follow the DELETE statement, so to return a relevant `RowsAffected` count
+	res, err := tx.Exec(`
+		DELETE FROM followers WHERE follower IN (SELECT id FROM users WHERE alias = ?) AND target = ?;
+		INSERT INTO bans (source, date, target) SELECT ?, datetime('now'), id FROM users WHERE alias = ?;
+	`, targetAlias, sourceId, sourceId, targetAlias)
+
+	// detects whether the requester is already among the target's followers
+	if sqliteErr, ok := err.(sqlite3.Error); ok {
+		if sqliteErr.ExtendedCode == sqlite3.ErrConstraintPrimaryKey {
+			return ErrDupBan
+		}
+	}
+
+	// unspecified error, handled with 500x server response
+	if err != nil {
+		return err
+	}
+
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+
 	affected, err := res.RowsAffected()
 	if err != nil {
-		return false, err
+		return err
 	}
-	return affected > 0, nil
+	if affected == 0 {
+		return ErrNotFound
+	}
+	return err
 }
 
 func (ur *userRepository) IsBanning(sourceId string, targetId string) (isBanning bool) {
 	var err = ur.Connection.QueryRow("SELECT TRUE FROM bans WHERE source = ? AND target = ?", sourceId, targetId).Scan(&isBanning)
 	return err == nil && isBanning
+
+}
+
+func (ur *userRepository) GetBans(id string) ([]BannedUser, error) {
+	var banned = make([]BannedUser, 0)
+	rows, err := ur.Connection.Query("SELECT id, alias, name, date FROM (SELECT target, date FROM bans WHERE source = ?) as banned JOIN users on banned.target = users.id", id)
+	if err != nil {
+		return nil, err
+	}
+
+	for rows.Next() {
+		var bannedUser BannedUser
+		if err = rows.Scan(&bannedUser.Id, &bannedUser.Alias, &bannedUser.Name, &bannedUser.Banned); err != nil {
+			return banned, err
+		}
+		banned = append(banned, bannedUser)
+	}
+
+	if err = rows.Err(); err != nil {
+		return banned, err
+	}
+
+	if err = rows.Close(); err != nil {
+		return banned, err
+	}
+
+	return banned, nil
 
 }

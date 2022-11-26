@@ -10,23 +10,27 @@ import (
 )
 
 func RegisterHandlers(engine rest.Engine, ur UserRepository, ar auth.Repository) {
-	// doesn't return a handler, as it's already present in the original scope
-	engine.Get("/users", getUsers(ur), auth.Auth(ar))
+
+	var authenticated = auth.Auth(ar)
+
+	engine.Get("/users", getUsers(ur), authenticated)
 	engine.Post("/users", addUser(ur))
 
 	// followers
-	engine.Get("/users/:alias/followers", getFollowers(ur)) // unauthorised
-	engine.Get("/me/followers", getSelfFollowers(ur), auth.Auth(ar))
-
-	engine.Post("/users/:alias/followed", followUser(ur), auth.Auth(ar))
-	engine.Delete("/users/:alias/followed/:target", unfollowUser(ur), auth.Auth(ar))
+	engine.Get("/users/:alias/followers", getFollowers(ur))
+	engine.Get("/me/followers", getSelfFollowers(ur), authenticated)
+	engine.Post("/users/:alias/followed", followUser(ur), authenticated)
+	engine.Delete("/users/:alias/followed/:target", unfollowUser(ur), authenticated)
 
 	// bans
-	engine.Post("/users/:alias/bans", banUser(ur), auth.Auth(ar))
+	engine.Get("/users/:alias/bans", getBans(ur), authenticated)
+	engine.Post("/users/:alias/bans", banUser(ur), authenticated)
 
 	// user details
-	engine.Put("/profile/name", updateName(ur), auth.Auth(ar))
-	engine.Put("/profile/alias", updateAlias(ur), auth.Auth(ar))
+	engine.Put("/profile/name", updateName(ur), authenticated)
+	engine.Put("/profile/alias", updateAlias(ur), authenticated)
+
+	// doesn't return a handler, as it's already present in the original scope
 }
 
 // getUsers fetches all existing users. As neither authorisation nor authentication are required; this is clearly a temporary
@@ -179,13 +183,13 @@ func followUser(ur UserRepository) http.HandlerFunc {
 		}
 
 		// attempt to follow the user and fail when:
-		// - the follower already follows the target (ErrFollowDuplicate)
+		// - the follower already follows the target (ErrDupFollower)
 		// - no user matches the target alias (ErrNotFound)
 		// - the target is banning the requester (a debatable ErrNotFound)
-		switch err := ur.Follow(follower.Id, data.TargetAlias); err {
+		switch err = ur.Follow(follower.Id, data.TargetAlias); err {
 		case nil:
 			JSON.NoContent(writer)
-		case ErrFollowDuplicate:
+		case ErrDupFollower:
 			JSON.BadRequestWithMessage(writer, err.Error())
 		case ErrNotFound:
 			JSON.NotFound(writer, err.Error())
@@ -232,9 +236,8 @@ func unfollowUser(ur UserRepository) http.HandlerFunc {
 func banUser(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
-		var source = auth.GetUser(request)
-
 		// ensure that the banning user matches the authenticated one
+		var source = auth.GetUser(request)
 		if source.Alias != httprouter.ParamsFromContext(request.Context()).ByName("alias") {
 			JSON.Unauthorised(writer)
 			return
@@ -253,25 +256,34 @@ func banUser(ur UserRepository) http.HandlerFunc {
 			return
 		}
 
-		// ensure the target exists to provide specific errors
-		targetUser, err := ur.GetUserByAlias(data.TargetAlias)
-		if err != nil {
-			JSON.BadRequestWithMessage(writer, fmt.Sprintf("User %s doesn't exist", data.TargetAlias))
+		// attempt to ban, which will also result in targets following the source to stop doing so
+		switch err = ur.Ban(source.Id, data.TargetAlias); err {
+		case nil:
+			JSON.NoContent(writer)
+		case ErrDupBan:
+			JSON.BadRequestWithMessage(writer, fmt.Sprintf("User %s is already banned", data.TargetAlias))
+		default:
+			JSON.InternalServerError(writer, err)
+		}
+	}
+}
+
+func getBans(ur UserRepository) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+
+		// check whether the user has legitimate access to the route
+		var user = auth.GetUser(request)
+		if user.Alias != httprouter.ParamsFromContext(request.Context()).ByName("alias") {
+			JSON.Unauthorised(writer)
 			return
 		}
 
-		// attempt to ban, which will result in targets following the source to stop doing so
-		banned, err := ur.Ban(source.Id, targetUser.Id)
+		banned, err := ur.GetBans(user.Id)
 		if err != nil {
 			JSON.InternalServerError(writer, err)
 			return
 		}
 
-		if banned {
-			JSON.NoContent(writer)
-		} else {
-			JSON.BadRequest(writer)
-		}
-
+		JSON.Ok(writer, banned)
 	}
 }

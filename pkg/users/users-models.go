@@ -56,12 +56,19 @@ func ValidateUserAlias(alias string) error {
 
 // Bans
 
+type BannedUser struct {
+	Id     string
+	Alias  string
+	Name   string
+	Banned time.Time
+}
+
 type BanUserData struct {
 	TargetAlias string
 }
 
 func (data BanUserData) Validate() error {
-	return validation.ValidateStruct(data, validation.Field(&data.TargetAlias, aliasRules...))
+	return validation.ValidateStruct(&data, validation.Field(&data.TargetAlias, aliasRules...))
 }
 
 // Followers
@@ -79,5 +86,5 @@ type FollowUserData struct {
 }
 
 func (data FollowUserData) Validate() error {
-	return validation.ValidateStruct(data, validation.Field(&data.TargetAlias, aliasRules...))
+	return validation.ValidateStruct(&data, validation.Field(&data.TargetAlias, aliasRules...))
 }
