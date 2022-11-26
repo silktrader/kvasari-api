@@ -19,7 +19,7 @@ func RegisterHandlers(engine rest.Engine, ur UserRepository, ar auth.Repository)
 	engine.Get("/me/followers", getSelfFollowers(ur), auth.Auth(ar))
 
 	engine.Post("/users/:alias/followed", followUser(ur), auth.Auth(ar))
-	engine.Delete("/users/:target/followers/:follower", unfollowUser(ur), auth.Auth(ar))
+	engine.Delete("/users/:alias/followed/:target", unfollowUser(ur), auth.Auth(ar))
 
 	// bans
 	engine.Post("/users/:alias/bans", banUser(ur), auth.Auth(ar))
@@ -181,7 +181,7 @@ func followUser(ur UserRepository) http.HandlerFunc {
 		// - the follower already follows the target (ErrFollowDuplicate)
 		// - no user matches the target alias (ErrNotFound)
 		// - the target is banning the requester (a debatable ErrNotFound)
-		switch err := ur.FollowAlias(follower.Id, data.TargetAlias); err {
+		switch err := ur.Follow(follower.Id, data.TargetAlias); err {
 		case nil:
 			JSON.NoContent(writer)
 		case ErrFollowDuplicate:
@@ -197,26 +197,33 @@ func followUser(ur UserRepository) http.HandlerFunc {
 func unfollowUser(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
-		var followerId = auth.GetUser(request).Id
-		var targetAlias = httprouter.ParamsFromContext(request.Context()).ByName("target")
-
-		// tk attempt to sanitise input
-		// check whether alias exists and return its id
-		targetUser, err := ur.GetUserByAlias(targetAlias)
-		if err != nil {
-			JSON.NotFound(writer, fmt.Sprintf("User %s not found", targetAlias))
+		// ensure that the follower's alias matches the authenticated user's
+		var follower = auth.GetUser(request)
+		if follower.Alias != httprouter.ParamsFromContext(request.Context()).ByName("alias") {
+			JSON.Unauthorised(writer)
 			return
 		}
 
-		// the (debatable) alternative to making an extra round trip to the DB is to rely on a rows count when deleting
-		unfollowed, err := ur.Unfollow(followerId, targetUser.Id)
+		// attempt to sanitise target alias before queries
+		var targetAlias = httprouter.ParamsFromContext(request.Context()).ByName("target")
+		if err := ValidateUserAlias(targetAlias); err != nil {
+			JSON.ValidationError(writer, err)
+			return
+		}
 
-		if unfollowed {
+		// short circuit handler when the target and the source match
+		if follower.Alias == targetAlias {
+			JSON.BadRequestWithMessage(writer, "Narcissistic request: can't unfollow oneself")
+			return
+		}
+
+		switch err := ur.Unfollow(follower.Id, targetAlias); err {
+		case nil:
 			JSON.NoContent(writer)
-		} else if err != nil {
+		case ErrNotFound:
+			JSON.BadRequestWithMessage(writer, fmt.Sprintf("User %s isn't followed", targetAlias))
+		default:
 			JSON.InternalServerError(writer, err)
-		} else {
-			JSON.BadRequestWithMessage(writer, fmt.Sprintf("You can't unfollow %s", targetAlias))
 		}
 	}
 }

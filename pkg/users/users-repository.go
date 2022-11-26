@@ -21,8 +21,8 @@ type UserRepository interface {
 	UpdateName(userId string, name string) error
 	UpdateAlias(userId string, name string) error
 	IsFollowing(followerId string, targetId string) bool
-	FollowAlias(followerId string, targetAlias string) error
-	Unfollow(followerId string, targetId string) (bool, error)
+	Follow(followerId string, targetAlias string) error
+	Unfollow(followerId string, targetAlias string) error
 	Ban(sourceId string, targetId string) (bool, error)
 }
 
@@ -210,7 +210,7 @@ func (ur *userRepository) IsFollowing(followerId string, targetId string) (exist
 	return err == nil && exists
 }
 
-func (ur *userRepository) FollowAlias(followerId string, targetAlias string) error {
+func (ur *userRepository) Follow(followerId string, targetAlias string) error {
 	res, err := ur.Connection.Exec(
 		"INSERT INTO followers (follower, target, date) SELECT ?, id as targetId, datetime('now') FROM users WHERE alias = ? AND ? NOT IN (SELECT target FROM bans WHERE source = targetId)",
 		followerId,
@@ -238,17 +238,21 @@ func (ur *userRepository) FollowAlias(followerId string, targetAlias string) err
 	return err
 }
 
-// Unfollow returns true when users are properly unfollowed or an error otherwise.
-func (ur *userRepository) Unfollow(followerId string, targetId string) (bool, error) {
-	result, err := ur.Connection.Exec("DELETE FROM followers WHERE follower = ? AND target = ?", followerId, targetId)
+func (ur *userRepository) Unfollow(followerId string, targetAlias string) error {
+	result, err := ur.Connection.Exec("DELETE FROM followers WHERE follower = ? AND target IN (SELECT id FROM users WHERE alias = ?)", followerId, targetAlias)
 	if err != nil {
-		return false, err
+		return err
 	}
 	unfollowed, err := result.RowsAffected()
 	if err != nil {
-		return false, err
+		return err
 	}
-	return unfollowed == 1, err
+
+	if unfollowed == 0 {
+		return ErrNotFound
+	}
+
+	return err
 }
 
 // Ban will return true for successful bans, false when no new bans are detected, or an error when the operation fails.
