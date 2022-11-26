@@ -82,15 +82,16 @@ func addUser(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
 		// parse and validate the user data
-		var userData AddUserData
-		if err := JSON.DecodeValidate(request, &userData); err != nil {
+		data, err := JSON.DecodeValidate[AddUserData](request)
+		if err != nil {
 			JSON.ValidationError(writer, err)
 			return
 		}
 
-		newUser, err := ur.Register(userData)
+		newUser, err := ur.Register(data)
 		if err != nil {
 			JSON.InternalServerError(writer, err)
+			return
 		}
 
 		JSON.Created(writer, newUser)
@@ -101,8 +102,8 @@ func updateName(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
 		// validate data first
-		var data UpdateNameData
-		if err := JSON.DecodeValidate(request, &data); err != nil {
+		data, err := JSON.DecodeValidate[UpdateNameData](request)
+		if err != nil {
 			JSON.ValidationError(writer, err)
 			return
 		}
@@ -122,15 +123,15 @@ func updateName(ur UserRepository) http.HandlerFunc {
 func updateAlias(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
-		var authUser = auth.GetUser(request)
-
-		var data UpdateAliasData
-		if err := JSON.DecodeValidate(request, &data); err != nil {
+		// validate data first
+		data, err := JSON.DecodeValidate[UpdateAliasData](request)
+		if err != nil {
 			JSON.ValidationError(writer, err)
 			return
 		}
 
 		// the database ensures uniqueness of aliases, but a specific error would be useful for the frontend
+		var authUser = auth.GetUser(request)
 		existingUser, err := ur.GetUserByAlias(data.Alias)
 
 		// authUser alias not found, proceed with the change
@@ -165,8 +166,8 @@ func followUser(ur UserRepository) http.HandlerFunc {
 		}
 
 		// validate target's alias
-		var data FollowUserData
-		if err := JSON.DecodeValidate(request, &data); err != nil {
+		data, err := JSON.DecodeValidate[FollowUserData](request)
+		if err != nil {
 			JSON.ValidationError(writer, err)
 			return
 		}
@@ -240,8 +241,8 @@ func banUser(ur UserRepository) http.HandlerFunc {
 		}
 
 		// validate target user alias
-		var data BanUserData
-		if err := JSON.DecodeValidate(request, &data); err != nil {
+		data, err := JSON.DecodeValidate[BanUserData](request)
+		if err != nil {
 			JSON.ValidationError(writer, err)
 			return
 		}

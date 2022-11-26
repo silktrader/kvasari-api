@@ -25,8 +25,8 @@ type AddUserData struct {
 	Password string
 }
 
-func (data *AddUserData) Validate() error {
-	return validation.ValidateStruct(data,
+func (data AddUserData) Validate() error {
+	return validation.ValidateStruct(&data,
 		validation.Field(&data.Name, nameRules...),
 		validation.Field(&data.Alias, aliasRules...),
 		validation.Field(&data.Email, validation.Required, is.Email),
@@ -38,7 +38,7 @@ type UpdateNameData struct {
 	Name string
 }
 
-func (data *UpdateNameData) Validate() error {
+func (data UpdateNameData) Validate() error {
 	return validation.ValidateStruct(data, validation.Field(&data.Name, nameRules...))
 }
 
@@ -46,7 +46,7 @@ type UpdateAliasData struct {
 	Alias string
 }
 
-func (data *UpdateAliasData) Validate() error {
+func (data UpdateAliasData) Validate() error {
 	return validation.ValidateStruct(data, validation.Field(&data.Alias, aliasRules...))
 }
 
@@ -60,7 +60,7 @@ type BanUserData struct {
 	TargetAlias string
 }
 
-func (data *BanUserData) Validate() error {
+func (data BanUserData) Validate() error {
 	return validation.ValidateStruct(data, validation.Field(&data.TargetAlias, aliasRules...))
 }
 
@@ -78,6 +78,6 @@ type FollowUserData struct {
 	TargetAlias string
 }
 
-func (data *FollowUserData) Validate() error {
+func (data FollowUserData) Validate() error {
 	return validation.ValidateStruct(data, validation.Field(&data.TargetAlias, aliasRules...))
 }

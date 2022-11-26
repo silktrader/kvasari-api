@@ -83,11 +83,11 @@ func encoderJSONError(writer http.ResponseWriter, status int, err error) {
 	encodeJSON(writer, status, newHttpError(err))
 }
 
-func DecodeValidate(r *http.Request, data Validator) error {
-	if err := json.NewDecoder(r.Body).Decode(data); err != nil {
-		return err
+func DecodeValidate[T Validator](request *http.Request) (data T, err error) {
+	if err = json.NewDecoder(request.Body).Decode(&data); err != nil {
+		return data, err
 	}
-	return data.Validate()
+	return data, data.Validate()
 }
 
 type Validator interface {

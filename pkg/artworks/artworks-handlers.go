@@ -18,8 +18,8 @@ func addArtwork(ar ArtworkRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
 		// parse and validate the artwork data
-		var data AddArtworkData
-		if err := JSON.DecodeValidate(request, &data); err != nil {
+		data, err := JSON.DecodeValidate[AddArtworkData](request)
+		if err != nil {
 			JSON.ValidationError(writer, err)
 			return
 		}

@@ -50,7 +50,7 @@ type AddArtworkData struct {
 	Created     time.Time
 }
 
-func (data *AddArtworkData) Validate() error {
+func (data AddArtworkData) Validate() error {
 	if !data.Type.IsValid() {
 		return errors.New("invalid artwork type")
 	}
