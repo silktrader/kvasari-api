@@ -39,7 +39,7 @@ type UpdateNameData struct {
 }
 
 func (data UpdateNameData) Validate() error {
-	return validation.ValidateStruct(data, validation.Field(&data.Name, nameRules...))
+	return validation.ValidateStruct(&data, validation.Field(&data.Name, nameRules...))
 }
 
 type UpdateAliasData struct {
@@ -47,7 +47,7 @@ type UpdateAliasData struct {
 }
 
 func (data UpdateAliasData) Validate() error {
-	return validation.ValidateStruct(data, validation.Field(&data.Alias, aliasRules...))
+	return validation.ValidateStruct(&data, validation.Field(&data.Alias, aliasRules...))
 }
 
 func ValidateUserAlias(alias string) error {

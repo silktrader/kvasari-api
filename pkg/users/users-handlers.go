@@ -27,8 +27,8 @@ func RegisterHandlers(engine rest.Engine, ur UserRepository, ar auth.Repository)
 	engine.Post("/users/:alias/bans", banUser(ur), authenticated)
 
 	// user details
-	engine.Put("/profile/name", updateName(ur), authenticated)
-	engine.Put("/profile/alias", updateAlias(ur), authenticated)
+	engine.Put("/users/:alias/name", updateName(ur), authenticated)
+	engine.Put("/users/:alias/alias", updateAlias(ur), authenticated)
 
 	// doesn't return a handler, as it's already present in the original scope
 }
@@ -112,10 +112,14 @@ func updateName(ur UserRepository) http.HandlerFunc {
 			return
 		}
 
-		// then attempt to perform the operation
+		// authorise or fail
 		var user = auth.GetUser(request)
+		if user.Alias != httprouter.ParamsFromContext(request.Context()).ByName("alias") {
+			JSON.Unauthorised(writer)
+			return
+		}
 
-		if err := ur.UpdateName(user.Id, data.Name); err != nil {
+		if err = ur.UpdateName(user.Id, data.Name); err != nil {
 			JSON.InternalServerError(writer, err)
 			return
 		}
@@ -134,28 +138,22 @@ func updateAlias(ur UserRepository) http.HandlerFunc {
 			return
 		}
 
-		// the database ensures uniqueness of aliases, but a specific error would be useful for the frontend
-		var authUser = auth.GetUser(request)
-		existingUser, err := ur.GetUserByAlias(data.Alias)
+		// authorise or fail
+		var user = auth.GetUser(request)
+		if user.Alias != httprouter.ParamsFromContext(request.Context()).ByName("alias") {
+			JSON.Unauthorised(writer)
+			return
+		}
 
-		// authUser alias not found, proceed with the change
-		if err != nil {
-			err = ur.UpdateAlias(authUser.Alias, data.Alias)
-			if err != nil {
-				JSON.InternalServerError(writer, err)
-				return
-			}
+		err = ur.UpdateAlias(user.Id, data.Alias)
+		switch err {
+		case nil:
 			JSON.NoContent(writer)
-			return
+		case ErrAliasTaken:
+			JSON.BadRequestWithMessage(writer, "Alias already taken")
+		default:
+			JSON.InternalServerError(writer, err)
 		}
-
-		// the authUser is attempting to change his own alias to its old alias
-		if existingUser.Id == authUser.Id {
-			JSON.BadRequestWithMessage(writer, "New and old aliases coincide")
-			return
-		}
-
-		JSON.BadRequestWithMessage(writer, "Alias already taken")
 	}
 }
 

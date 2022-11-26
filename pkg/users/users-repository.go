@@ -16,8 +16,8 @@ type UserRepository interface {
 	ExistsUserAlias(alias string) bool
 	GetUserById(id string) (user User, err error)
 	GetUserByAlias(alias string) (user User, err error)
-	UpdateName(userId string, name string) error
-	UpdateAlias(userId string, name string) error
+	UpdateName(userId string, newName string) error
+	UpdateAlias(userId string, newAlias string) error
 
 	IsFollowing(followerId string, targetId string) bool
 	Follow(followerId string, targetAlias string) error
@@ -37,6 +37,7 @@ var (
 	ErrDupFollower = errors.New("user already follows target")
 	ErrNotFound    = errors.New("user not found")
 	ErrDupBan      = errors.New("user is already banned")
+	ErrAliasTaken  = errors.New("alias is already taken")
 )
 
 func NewRepository(connection *sql.DB) UserRepository {
@@ -197,15 +198,24 @@ func (ur *userRepository) Register(data AddUserData) (user *User, err error) {
 	}, nil
 }
 
-func (ur *userRepository) UpdateName(userId string, name string) error {
+func (ur *userRepository) UpdateName(userId string, newName string) error {
 	// avoid using DB triggers for possible future storage switches
-	_, err := ur.Connection.Exec("UPDATE users SET name = ?, updated = ? WHERE id = ?", name, time.Now(), userId)
+	_, err := ur.Connection.Exec("UPDATE users SET name = ?, updated = ? WHERE id = ?", newName, time.Now(), userId)
 	return err
 }
 
-func (ur *userRepository) UpdateAlias(userId string, alias string) error {
+// UpdateAlias will change the specified user's alias, but won't return errors in case of no changes
+func (ur *userRepository) UpdateAlias(userId string, newAlias string) error {
 	// avoid using DB triggers for possible future storage switches
-	_, err := ur.Connection.Exec("UPDATE users SET alias = ?, updated = ? WHERE id = ?", alias, time.Now(), userId)
+	// idempotent PUT request doesn't require a change detection
+	_, err := ur.Connection.Exec("UPDATE users SET alias = ?, updated = ? WHERE id = ?", newAlias, time.Now(), userId)
+
+	// detect alias uniqueness violations which signal that the alias is taken
+	if sqliteErr, ok := err.(sqlite3.Error); ok {
+		if sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
+			return ErrAliasTaken
+		}
+	}
 	return err
 }
 
