@@ -88,7 +88,12 @@ func (ur *userRepository) GetFollowers(userAlias string) ([]Follower, error) {
 	// initialise empty slice to avoid null serialisation; IDE complains about `[]Follower{}`
 	var followers = make([]Follower, 0)
 
-	rows, err := ur.Connection.Query("SELECT id, alias, name, email, date FROM (SELECT follower, date FROM followers WHERE target = (SELECT id FROM users WHERE users.alias = ?)) as fws JOIN users ON fws.follower = users.id", userAlias)
+	rows, err := ur.Connection.Query(`
+		SELECT id, alias, name, email, date
+		FROM (SELECT follower, date FROM followers WHERE target = (SELECT id FROM users WHERE users.alias = ?)) as fws
+		JOIN users ON fws.follower = users.id`,
+		userAlias,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +119,12 @@ func (ur *userRepository) GetFollowers(userAlias string) ([]Follower, error) {
 func (ur *userRepository) GetFollowersById(id string) ([]Follower, error) {
 
 	var followers = make([]Follower, 0)
-	rows, err := ur.Connection.Query("SELECT id, alias, name, email, date FROM (SELECT follower, date FROM followers WHERE target = ?) as fws JOIN users ON fws.follower = users.id", id)
+	rows, err := ur.Connection.Query(`
+		SELECT id, alias, name, email, date
+		FROM (SELECT follower, date FROM followers WHERE target = ?) as fws
+		JOIN users ON fws.follower = users.id`,
+		id,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +162,13 @@ func (ur *userRepository) ExistsUserAlias(alias string) (exists bool) {
 
 // GetUserByAlias either returns a user matching the alias, or an error (along with an ignorable empty struct).
 func (ur *userRepository) GetUserByAlias(alias string) (user User, err error) {
-	err = ur.Connection.QueryRow("SELECT id, name, email, created, updated FROM users WHERE alias = ?", alias).Scan(&user.Id, &user.Name, &user.Alias, &user.Created, &user.Updated)
+	err = ur.Connection.QueryRow("SELECT id, name, email, created, updated FROM users WHERE alias = ?", alias).Scan(
+		&user.Id,
+		&user.Name,
+		&user.Alias,
+		&user.Created,
+		&user.Updated,
+	)
 	if err != nil {
 		return User{}, err
 	}
@@ -162,7 +178,13 @@ func (ur *userRepository) GetUserByAlias(alias string) (user User, err error) {
 // GetUserById either returns a user matching the id, or an error (along with an ignorable empty struct).
 func (ur *userRepository) GetUserById(id string) (user User, err error) {
 	// if the query selects no rows, *Row's `Scan` will return ErrNoRows
-	if err = ur.Connection.QueryRow("SELECT id, name, email, created, updated FROM users WHERE id = ?", id).Scan(&user.Id, &user.Name, &user.Alias, &user.Created, &user.Updated); err != nil {
+	if err = ur.Connection.QueryRow("SELECT id, name, email, created, updated FROM users WHERE id = ?", id).Scan(
+		&user.Id,
+		&user.Name,
+		&user.Alias,
+		&user.Created,
+		&user.Updated,
+	); err != nil {
 		return user, err
 	}
 	return user, nil
@@ -178,7 +200,8 @@ func (ur *userRepository) Register(data AddUserData) (user *User, err error) {
 
 	var now = time.Now()
 
-	result, err := ur.Connection.Exec("INSERT INTO users(id, name, alias, email, salt, password, created, updated) VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
+	result, err := ur.Connection.Exec(
+		"INSERT INTO users(id, name, alias, email, salt, password, created, updated) VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
 		id.String(), data.Name, data.Alias, data.Email, data.Password, "", now, now)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't add user %q: %w", data.Alias, err)
@@ -220,13 +243,19 @@ func (ur *userRepository) UpdateAlias(userId string, newAlias string) error {
 }
 
 func (ur *userRepository) IsFollowing(followerId string, targetId string) (exists bool) {
-	var err = ur.Connection.QueryRow("SELECT TRUE FROM followers WHERE follower = ? AND target = ?", followerId, targetId).Scan(&exists)
+	var err = ur.Connection.QueryRow(
+		"SELECT TRUE FROM followers WHERE follower = ? AND target = ?",
+		followerId,
+		targetId,
+	).Scan(&exists)
 	return err == nil && exists
 }
 
 func (ur *userRepository) Follow(followerId string, targetAlias string) error {
-	res, err := ur.Connection.Exec(
-		"INSERT INTO followers (follower, target, date) SELECT ?, id as targetId, datetime('now') FROM users WHERE alias = ? AND ? NOT IN (SELECT target FROM bans WHERE source = targetId)",
+	res, err := ur.Connection.Exec(`
+		INSERT INTO followers (follower, target, date)
+		SELECT ?, id as targetId, datetime('now')
+		FROM users WHERE alias = ? AND ? NOT IN (SELECT target FROM bans WHERE source = targetId)`,
 		followerId,
 		targetAlias,
 		followerId,
@@ -253,7 +282,11 @@ func (ur *userRepository) Follow(followerId string, targetAlias string) error {
 }
 
 func (ur *userRepository) Unfollow(followerId string, targetAlias string) error {
-	result, err := ur.Connection.Exec("DELETE FROM followers WHERE follower = ? AND target IN (SELECT id FROM users WHERE alias = ?)", followerId, targetAlias)
+	result, err := ur.Connection.Exec(
+		`DELETE FROM followers WHERE follower = ? AND target IN (SELECT id FROM users WHERE alias = ?)`,
+		followerId,
+		targetAlias,
+	)
 	if err != nil {
 		return err
 	}
@@ -312,14 +345,22 @@ func (ur *userRepository) Ban(sourceId string, targetAlias string) error {
 }
 
 func (ur *userRepository) IsBanning(sourceId string, targetId string) (isBanning bool) {
-	var err = ur.Connection.QueryRow("SELECT TRUE FROM bans WHERE source = ? AND target = ?", sourceId, targetId).Scan(&isBanning)
+	var err = ur.Connection.QueryRow(
+		"SELECT TRUE FROM bans WHERE source = ? AND target = ?",
+		sourceId,
+		targetId,
+	).Scan(&isBanning)
 	return err == nil && isBanning
 
 }
 
 func (ur *userRepository) GetBans(id string) ([]BannedUser, error) {
 	var banned = make([]BannedUser, 0)
-	rows, err := ur.Connection.Query("SELECT id, alias, name, date FROM (SELECT target, date FROM bans WHERE source = ?) as banned JOIN users on banned.target = users.id", id)
+	rows, err := ur.Connection.Query(`
+		SELECT id, alias, name, date
+		FROM (SELECT target, date FROM bans WHERE source = ?) as banned JOIN users on banned.target = users.id`,
+		id,
+	)
 	if err != nil {
 		return nil, err
 	}
