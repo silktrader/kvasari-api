@@ -21,13 +21,13 @@ func NewRepository(connection *sql.DB) ArtworkRepository {
 }
 
 func (ar *artworkRepository) AddArtwork(data AddArtworkData, userId string) (id string, updated time.Time, err error) {
-
-	// generate a new unique ID
+	// generate a new unique ID server side
+	// SQLite has limited ability in this regard, while Postgresql and others have adequate features or extensions
 	newUUID, err := uuid.NewV4()
-	id = newUUID.String()
 	if err != nil {
 		return id, updated, fmt.Errorf("couldn't generate a unique user id for %q: %w", data.Title, err)
 	}
+	id = newUUID.String()
 
 	var now = time.Now()
 
@@ -57,6 +57,8 @@ func (ar *artworkRepository) OwnsArtwork(artworkId string, userId string) bool {
 //   - the artwork doesn't exist
 //   - the artwork isn't owned by the specified user
 //   - the artwork was previously deleted
+//
+// tk handle with errors
 func (ar *artworkRepository) DeleteArtwork(artworkId string, userId string) bool {
 
 	result, err := ar.Connection.Exec("UPDATE artworks SET deleted = TRUE WHERE artworks.id = ? AND author_id = ? AND deleted = FALSE", artworkId, userId)

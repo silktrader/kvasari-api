@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"os"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 )
@@ -83,11 +84,18 @@ func getValidConnection(path string) (connection *sql.DB, err error) {
 
 func mapSchema(connection *sql.DB) (tables map[string]string, err error) {
 
-	const query = "SELECT name, sql FROM sqlite_schema WHERE type = 'table' AND name != 'sqlite_sequence'"
-	rows, err := connection.Query(query)
+	rows, err := connection.Query(`SELECT name, sql FROM sqlite_master WHERE type = 'table'`)
 	if err != nil {
 		return nil, err
 	}
+
+	// for some reason in memory and on file sqlite schemas differ, possibly due to the hosting platform
+	var replacer = strings.NewReplacer(
+		"\n\t\t", "",
+		"\r\n\t\t", "",
+		"\r\n", "",
+		"\n", "",
+	)
 
 	tables = make(map[string]string)
 	var name, sqlCode string
@@ -96,25 +104,24 @@ func mapSchema(connection *sql.DB) (tables map[string]string, err error) {
 		if err != nil {
 			return tables, err
 		}
-		tables[name] = sqlCode
+		tables[name] = replacer.Replace(sqlCode)
 	}
-
-	// the official documentation suggests that rows be closed, but doesn't handle errors
-	// https://github.com/mattn/go-sqlite3/blob/master/_example/simple/simple.go
-	defer func() {
-		err = rows.Close()
-	}()
 
 	if err = rows.Err(); err != nil {
 		return tables, err
 	}
 
-	return tables, nil
+	err = rows.Close()
+	if err != nil {
+		return tables, err
+	}
+
+	return tables, err
 }
 
 func sameSchemaMap(first, second map[string]string) bool {
 	// the second map might be larger than the first, hence the additional length check
-	if first == nil || second == nil || len(first) != len(second) {
+	if len(first) != len(second) {
 		return false
 	}
 	for firstKey, firstValue := range first {

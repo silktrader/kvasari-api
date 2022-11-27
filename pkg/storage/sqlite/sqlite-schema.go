@@ -55,5 +55,16 @@ CREATE TABLE
 		CONSTRAINT source_target_pk PRIMARY KEY (source, target)
 	);
 
+CREATE TABLE
+	IF NOT EXISTS artwork_feedback (
+		artwork TEXT NOT NULL,
+		user TEXT NOT NULL,
+		reaction TEXT NOT NULL,
+		date	datetime NOT NULL,
+		CONSTRAINT artwork_fk FOREIGN KEY (artwork) REFERENCES artworks (id) ON DELETE CASCADE,
+		CONSTRAINT user_fk FOREIGN KEY (user) REFERENCES users (id) ON DELETE CASCADE,
+		CONSTRAINT artwork_user_pk PRIMARY KEY (artwork, user)
+	);
+
 COMMIT;
 `
