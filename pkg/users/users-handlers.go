@@ -25,6 +25,7 @@ func RegisterHandlers(engine rest.Engine, ur UserRepository, ar auth.Repository)
 	// bans
 	engine.Get("/users/:alias/bans", getBans(ur), authenticated)
 	engine.Post("/users/:alias/bans", banUser(ur), authenticated)
+	engine.Delete("/users/:alias/bans/:target", unbanUser(ur), authenticated)
 
 	// user details
 	engine.Put("/users/:alias/name", updateName(ur), authenticated)
@@ -260,6 +261,40 @@ func banUser(ur UserRepository) http.HandlerFunc {
 			JSON.NoContent(writer)
 		case ErrDupBan:
 			JSON.BadRequestWithMessage(writer, fmt.Sprintf("User %s is already banned", data.TargetAlias))
+		default:
+			JSON.InternalServerError(writer, err)
+		}
+	}
+}
+
+func unbanUser(ur UserRepository) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+
+		// ensure that the user taking action is authorised
+		var source = auth.GetUser(request)
+		if source.Alias != httprouter.ParamsFromContext(request.Context()).ByName("alias") {
+			JSON.Unauthorised(writer)
+			return
+		}
+
+		// attempt to sanitise target alias before queries
+		var targetAlias = httprouter.ParamsFromContext(request.Context()).ByName("target")
+		if err := ValidateUserAlias(targetAlias); err != nil {
+			JSON.ValidationError(writer, err)
+			return
+		}
+
+		// short circuit handler when the target and the source match
+		if source.Alias == targetAlias {
+			JSON.BadRequestWithMessage(writer, "Narcissistic request: can't ban oneself")
+			return
+		}
+
+		switch err := ur.Unban(source.Id, targetAlias); err {
+		case nil:
+			JSON.NoContent(writer)
+		case ErrNotFound:
+			JSON.BadRequestWithMessage(writer, fmt.Sprintf("User %s isn't banned", targetAlias))
 		default:
 			JSON.InternalServerError(writer, err)
 		}

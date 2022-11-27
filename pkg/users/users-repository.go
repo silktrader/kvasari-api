@@ -26,6 +26,7 @@ type UserRepository interface {
 	GetFollowersById(id string) ([]Follower, error)
 
 	Ban(sourceId string, targetAlias string) error
+	Unban(sourceId string, targetAlias string) error
 	GetBans(sourceId string) ([]BannedUser, error)
 }
 
@@ -35,7 +36,7 @@ type userRepository struct {
 
 var (
 	ErrDupFollower = errors.New("user already follows target")
-	ErrNotFound    = errors.New("user not found")
+	ErrNotFound    = errors.New("not found")
 	ErrDupBan      = errors.New("user is already banned")
 	ErrAliasTaken  = errors.New("alias is already taken")
 )
@@ -341,6 +342,33 @@ func (ur *userRepository) Ban(sourceId string, targetAlias string) error {
 	if affected == 0 {
 		return ErrNotFound
 	}
+	return err
+}
+
+// Unban attempts to remove a user ban and can return:
+//  1. ErrNotFound: the source didn't ban the target to start with
+//  2. a generic SQL error that occurred during the operation
+//  3. nil
+func (ur *userRepository) Unban(sourceId string, targetAlias string) error {
+	result, err := ur.Connection.Exec(
+		`DELETE FROM bans WHERE source = ? AND target IN (SELECT id FROM users WHERE alias = ?)`,
+		sourceId,
+		targetAlias,
+	)
+	
+	if err != nil {
+		return err
+	}
+
+	banned, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if banned == 0 {
+		return ErrNotFound
+	}
+
 	return err
 }
 
