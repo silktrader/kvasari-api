@@ -18,6 +18,7 @@ type UserRepository interface {
 	GetUserByAlias(alias string) (user User, err error)
 	UpdateName(userId string, newName string) error
 	UpdateAlias(userId string, newAlias string) error
+	GetProfileData(userId string) (ProfileData, error)
 
 	IsFollowing(followerId string, targetId string) bool
 	Follow(followerId string, targetAlias string) error
@@ -355,7 +356,7 @@ func (ur *userRepository) Unban(sourceId string, targetAlias string) error {
 		sourceId,
 		targetAlias,
 	)
-	
+
 	if err != nil {
 		return err
 	}
@@ -410,5 +411,69 @@ func (ur *userRepository) GetBans(id string) ([]BannedUser, error) {
 	}
 
 	return banned, nil
+}
+
+func (ur *userRepository) GetProfileData(userId string) (ProfileData, error) {
+
+	// fetch user relations
+	followers, followed, err := ur.GetUserRelations(userId)
+
+	if err != nil {
+		return ProfileData{}, err
+	}
+
+	var data = ProfileData{followers, followed}
+	return data, err
+}
+
+func (ur *userRepository) GetUserRelations(userId string) ([]RelationData, []RelationData, error) {
+
+	var followers, followed = make([]RelationData, 0), make([]RelationData, 0)
+
+	rows, err := ur.Connection.Query(`
+		SELECT id, is_follower, alias, name, date
+		FROM (
+		    SELECT follower as id, TRUE as is_follower, date
+		    FROM   followers
+		    WHERE  target = ?
+		    UNION
+		    SELECT target as id, FALSE as is_follower, date
+		    FROM   followers
+		    WHERE  follower = ?
+		) as x
+		JOIN users USING (id)
+		ORDER BY date DESC`,
+		userId,
+		userId,
+	)
+
+	if err != nil {
+		return followers, followed, err
+	}
+
+	var isFollower bool
+	for rows.Next() {
+		var relation RelationData
+		if err = rows.Scan(&relation.Id, &isFollower, &relation.Alias, &relation.Name, &relation.Date); err != nil {
+			return followers, followed, err
+		}
+
+		// append the relation to either followers or followed slices
+		if isFollower {
+			followers = append(followers, relation)
+		} else {
+			followed = append(followed, relation)
+		}
+	}
+
+	if err = rows.Err(); err != nil {
+		return followers, followed, err
+	}
+
+	if err = rows.Close(); err != nil {
+		return followers, followed, err
+	}
+
+	return followers, followed, err
 
 }

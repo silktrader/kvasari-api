@@ -31,6 +31,8 @@ func RegisterHandlers(engine rest.Engine, ur UserRepository, ar auth.Repository)
 	engine.Put("/users/:alias/name", updateName(ur), authenticated)
 	engine.Put("/users/:alias/alias", updateAlias(ur), authenticated)
 
+	engine.Get("/users/:alias/profile", getProfile(ur), authenticated)
+
 	// doesn't return a handler, as it's already present in the original scope
 }
 
@@ -318,5 +320,26 @@ func getBans(ur UserRepository) http.HandlerFunc {
 		}
 
 		JSON.Ok(writer, banned)
+	}
+}
+
+func getProfile(ur UserRepository) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+
+		// check whether the user has legitimate access to the route
+		var user = auth.GetUser(request)
+		if user.Alias != httprouter.ParamsFromContext(request.Context()).ByName("alias") {
+			JSON.Unauthorised(writer)
+			return
+		}
+
+		profile, err := ur.GetProfileData(user.Id)
+		if err != nil {
+			JSON.InternalServerError(writer, err) // tk disambiguate
+			return
+		}
+
+		JSON.Ok(writer, profile)
+
 	}
 }
