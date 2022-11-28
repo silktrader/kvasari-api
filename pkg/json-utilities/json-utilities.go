@@ -66,6 +66,11 @@ func ValidationError(writer http.ResponseWriter, err error) {
 	_ = json.NewEncoder(writer).Encode(newHttpError(err))
 }
 
+func SeeOther(writer http.ResponseWriter, location string) {
+	writer.Header().Set("Location", location)
+	writer.WriteHeader(http.StatusSeeOther)
+}
+
 func encodeJSON(writer http.ResponseWriter, status int, payload interface{}) {
 	writer.Header().Set("Content-Type", "application/json")
 	writer.WriteHeader(status)

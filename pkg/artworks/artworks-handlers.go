@@ -10,8 +10,13 @@ import (
 )
 
 func RegisterHandlers(engine rest.Engine, ar ArtworkRepository, aur auth.Repository) {
-	engine.Post("/artworks", addArtwork(ar), auth.Auth(aur))
-	engine.Delete("/artworks/:id", deleteArtwork(ar), auth.Auth(aur))
+
+	var authenticated = auth.Auth(aur)
+
+	engine.Post("/users/:alias/artworks", addArtwork(ar), authenticated)
+	engine.Delete("/artworks/:id", deleteArtwork(ar), authenticated)
+
+	engine.Put("/artworks/:artworkId/reactions/:alias", setArtworkReaction(ar), authenticated)
 }
 
 func addArtwork(ar ArtworkRepository) http.HandlerFunc {
@@ -24,18 +29,27 @@ func addArtwork(ar ArtworkRepository) http.HandlerFunc {
 			return
 		}
 
-		id, updated, err := ar.AddArtwork(data, auth.GetUser(request).Id)
-		if err != nil {
-			JSON.InternalServerError(writer, err)
+		// ensure that the follower's alias matches the authenticated user's
+		var user = auth.GetUser(request)
+		if user.Alias != rest.GetParam(request, "alias") {
+			JSON.Unauthorised(writer)
+			return
 		}
 
-		JSON.Created(writer, struct {
-			Id      string
-			Updated time.Time
-		}{
-			Id:      id,
-			Updated: updated,
-		})
+		// return a JSON with the artwork's ID and time of creation
+		id, updated, err := ar.AddArtwork(data, user.Id)
+		switch err {
+		case nil:
+			JSON.Created(writer, struct {
+				Id      string
+				Updated time.Time
+			}{
+				Id:      id,
+				Updated: updated,
+			})
+		default:
+			JSON.InternalServerError(writer, err)
+		}
 	}
 }
 
@@ -54,6 +68,40 @@ func deleteArtwork(ar ArtworkRepository) http.HandlerFunc {
 			JSON.NoContent(writer)
 		} else {
 			JSON.BadRequest(writer)
+		}
+	}
+}
+
+func setArtworkReaction(ar ArtworkRepository) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+
+		// the path user must match the authorised one
+		var user = auth.GetUser(request)
+		if user.Alias != rest.GetParam(request, "alias") {
+			JSON.Unauthorised(writer)
+			return
+		}
+
+		// validate
+		data, err := JSON.DecodeValidate[ReactionData](request)
+		if err != nil {
+			JSON.ValidationError(writer, err)
+			return
+		}
+
+		var date = time.Now()
+
+		switch err = ar.SetReaction(user.Id, rest.GetParam(request, "artworkId"), date, data); err {
+		case nil:
+			JSON.Ok(writer, struct {
+				Reaction ReactionType
+				Date     time.Time
+			}{
+				data.Reaction,
+				date,
+			})
+		default:
+			JSON.InternalServerError(writer, err)
 		}
 	}
 }

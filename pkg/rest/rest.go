@@ -89,3 +89,9 @@ func (e *Engine) Put(path string, handlerFunc http.HandlerFunc, middleware ...fu
 func (e *Engine) Delete(path string, handlerFunc http.HandlerFunc, middleware ...func(http.Handler) http.Handler) {
 	e.Handle(http.MethodDelete, path, handlerFunc, middleware...)
 }
+
+// helper functions
+
+func GetParam(request *http.Request, key string) string {
+	return httprouter.ParamsFromContext(request.Context()).ByName(key)
+}

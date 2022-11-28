@@ -2,6 +2,7 @@ package artworks
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"github.com/gofrs/uuid"
 	"time"
@@ -10,6 +11,7 @@ import (
 type ArtworkRepository interface {
 	AddArtwork(data AddArtworkData, userId string) (string, time.Time, error)
 	DeleteArtwork(artworkId string, userId string) bool
+	SetReaction(userId string, artworkId string, date time.Time, feedback ReactionData) error
 }
 
 type artworkRepository struct {
@@ -19,6 +21,11 @@ type artworkRepository struct {
 func NewRepository(connection *sql.DB) ArtworkRepository {
 	return &artworkRepository{connection}
 }
+
+var (
+	ErrNotFound     = errors.New("not found")
+	ErrSameReaction = errors.New("same reaction detected")
+)
 
 func (ar *artworkRepository) AddArtwork(data AddArtworkData, userId string) (id string, updated time.Time, err error) {
 	// generate a new unique ID server side
@@ -61,7 +68,11 @@ func (ar *artworkRepository) OwnsArtwork(artworkId string, userId string) bool {
 // tk handle with errors
 func (ar *artworkRepository) DeleteArtwork(artworkId string, userId string) bool {
 
-	result, err := ar.Connection.Exec("UPDATE artworks SET deleted = TRUE WHERE artworks.id = ? AND author_id = ? AND deleted = FALSE", artworkId, userId)
+	result, err := ar.Connection.Exec(`
+		UPDATE artworks SET deleted = TRUE WHERE artworks.id = ? AND author_id = ? AND deleted = FALSE`,
+		artworkId,
+		userId,
+	)
 	if err != nil {
 		return false
 	}
@@ -70,4 +81,30 @@ func (ar *artworkRepository) DeleteArtwork(artworkId string, userId string) bool
 		return false
 	}
 	return true
+}
+
+func (ar *artworkRepository) SetReaction(userId string, artworkId string, date time.Time, data ReactionData) error {
+
+	if data.Reaction == None {
+		return ar.removeReaction(userId, artworkId)
+	}
+	return ar.upsertReaction(userId, artworkId, date, data)
+}
+
+func (ar *artworkRepository) upsertReaction(userId string, artworkId string, date time.Time, data ReactionData) error {
+	_, err := ar.Connection.Exec(`
+		INSERT INTO artwork_feedback(artwork, user, reaction, date)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT (artwork, user) DO UPDATE SET reaction = ?, date = ?`,
+		artworkId, userId, data.Reaction, date, data.Reaction, date)
+
+	return err
+}
+
+func (ar *artworkRepository) removeReaction(userId string, artworkId string) error {
+	_, err := ar.Connection.Exec(`
+		DELETE FROM artwork_feedback WHERE artwork = ? AND user = ?`,
+		artworkId, userId)
+
+	return err
 }

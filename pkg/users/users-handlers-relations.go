@@ -75,6 +75,7 @@ func followUser(ur UserRepository) http.HandlerFunc {
 		case nil:
 			JSON.NoContent(writer)
 		case ErrDupFollower:
+			// tk add 304 response, Not Modified?
 			JSON.BadRequestWithMessage(writer, err.Error())
 		case ErrNotFound:
 			JSON.NotFound(writer, err.Error())

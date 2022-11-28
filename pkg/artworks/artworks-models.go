@@ -1,7 +1,6 @@
 package artworks
 
 import (
-	"errors"
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/go-ozzo/ozzo-validation/is"
 	"time"
@@ -17,14 +16,8 @@ const (
 	Photograph   ArtworkType = "Photograph"
 )
 
-func (t ArtworkType) IsValid() bool {
-	// would be preferable to have an automagically populated slice of values and check for inclusion
-	switch t {
-	case Painting, Drawing, Sculpture, Architecture, Photograph:
-		return true
-	}
-	return false
-}
+// tk really odd issue with variadic arguments; can't specify ArtworkType[]
+var artworkTypes = []interface{}{Painting, Drawing, Sculpture, Architecture, Photograph}
 
 type Artwork struct {
 	ID          string
@@ -51,14 +44,29 @@ type AddArtworkData struct {
 }
 
 func (data AddArtworkData) Validate() error {
-	if !data.Type.IsValid() {
-		return errors.New("invalid artwork type")
-	}
-	// tk test validation.In() to check "enums"
-	return validation.ValidateStruct(data,
+	return validation.ValidateStruct(&data,
+		validation.Field(&data.Type, validation.Required, validation.In(artworkTypes...)),
 		validation.Field(&data.Title, validation.Required),
-		validation.Field(&data.PictureURL, is.URL),
+		validation.Field(&data.PictureURL, validation.Required, is.URL),
 		validation.Field(&data.Year, validation.Min(-10000), validation.Max(10000)),
 		validation.Field(&data.Created, validation.Date("2000-12-25")),
 	)
+}
+
+type ReactionType string
+
+const (
+	None      ReactionType = "None"
+	Like      ReactionType = "Like"
+	Perplexed ReactionType = "Perplexed"
+)
+
+var reactions = []interface{}{None, Like, Perplexed}
+
+type ReactionData struct {
+	Reaction ReactionType
+}
+
+func (data ReactionData) Validate() error {
+	return validation.ValidateStruct(&data, validation.Field(&data.Reaction, validation.In(reactions...)))
 }
