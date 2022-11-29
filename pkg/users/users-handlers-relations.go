@@ -31,19 +31,6 @@ func getFollowers(ur UserRepository) http.HandlerFunc {
 	}
 }
 
-func getSelfFollowers(ur UserRepository) http.HandlerFunc {
-	return func(writer http.ResponseWriter, request *http.Request) {
-
-		followers, err := ur.GetFollowersById(auth.GetUser(request).Id)
-		if err != nil {
-			JSON.InternalServerError(writer, err)
-			return
-		}
-
-		JSON.Ok(writer, followers)
-	}
-}
-
 func followUser(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 

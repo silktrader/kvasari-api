@@ -24,7 +24,6 @@ type UserRepository interface {
 	Follow(followerId string, targetAlias string) error
 	Unfollow(followerId string, targetAlias string) error
 	GetFollowers(userAlias string) ([]Follower, error)
-	GetFollowersById(id string) ([]Follower, error)
 
 	Ban(sourceId string, targetAlias string) error
 	Unban(sourceId string, targetAlias string) error
@@ -116,38 +115,6 @@ func (ur *userRepository) GetFollowers(userAlias string) ([]Follower, error) {
 	}
 
 	return followers, nil
-}
-
-func (ur *userRepository) GetFollowersById(id string) ([]Follower, error) {
-
-	var followers = make([]Follower, 0)
-	rows, err := ur.Connection.Query(`
-		SELECT id, alias, name, email, date
-		FROM (SELECT follower, date FROM followers WHERE target = ?) as fws
-		JOIN users ON fws.follower = users.id`,
-		id,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	for rows.Next() {
-		var follower Follower
-		if err = rows.Scan(&follower.ID, &follower.Alias, &follower.Name, &follower.Email, &follower.Followed); err != nil {
-			return followers, err
-		}
-		followers = append(followers, follower)
-	}
-
-	if err = rows.Err(); err != nil {
-		return followers, err
-	}
-	if err = rows.Close(); err != nil {
-		return followers, err
-	}
-
-	return followers, nil
-
 }
 
 func (ur *userRepository) ExistsUserId(id string) (exists bool) {
