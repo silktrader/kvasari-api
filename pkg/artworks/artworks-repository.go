@@ -13,6 +13,7 @@ type ArtworkRepository interface {
 	DeleteArtwork(artworkId string, userId string) bool
 	SetReaction(userId string, artworkId string, date time.Time, feedback ReactionData) error
 	AddComment(userId string, artworkId string, data CommentData) (id string, date time.Time, err error)
+	DeleteComment(userId string, commentId string) error
 }
 
 type artworkRepository struct {
@@ -24,8 +25,7 @@ func NewRepository(connection *sql.DB) ArtworkRepository {
 }
 
 var (
-	ErrNotFound     = errors.New("not found")
-	ErrSameReaction = errors.New("same reaction detected")
+	ErrNotFound = errors.New("not found")
 )
 
 func (ar *artworkRepository) AddArtwork(data AddArtworkData, userId string) (id string, updated time.Time, err error) {
@@ -125,4 +125,23 @@ func (ar *artworkRepository) AddComment(userId string, artworkId string, data Co
 		id, artworkId, userId, data.Comment, date)
 
 	return id, date, err
+}
+
+func (ar *artworkRepository) DeleteComment(userId string, commentId string) error {
+
+	result, err := ar.Connection.Exec(`DELETE FROM artwork_comments WHERE id = ? AND user = ?`, commentId, userId)
+
+	if err != nil {
+		return err
+	}
+
+	deleted, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if deleted != 1 {
+		return ErrNotFound
+	}
+	return err
 }

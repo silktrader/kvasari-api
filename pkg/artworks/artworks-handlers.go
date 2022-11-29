@@ -17,6 +17,7 @@ func RegisterHandlers(engine rest.Engine, ar ArtworkRepository, aur auth.Reposit
 	engine.Delete("/artworks/:id", deleteArtwork(ar), authenticated)
 
 	engine.Post("/artworks/:id/comments", addComment(ar), authenticated)
+	engine.Delete("/artworks/:id/comments/:commentId", deleteComment(ar), authenticated)
 
 	engine.Put("/artworks/:artworkId/reactions/:alias", setReaction(ar), authenticated)
 }
@@ -132,5 +133,19 @@ func addComment(ar ArtworkRepository) http.HandlerFunc {
 			Id:   id,
 			Date: date,
 		})
+	}
+}
+
+func deleteComment(ar ArtworkRepository) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+
+		switch err := ar.DeleteComment(auth.GetUser(request).Id, rest.GetParam(request, "commentId")); err {
+		case nil:
+			JSON.NoContent(writer)
+		case ErrNotFound:
+			JSON.NotFound(writer, "Comment not found, or unauthorised action")
+		default:
+			JSON.InternalServerError(writer, err)
+		}
 	}
 }
