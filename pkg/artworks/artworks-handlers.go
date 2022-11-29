@@ -16,7 +16,9 @@ func RegisterHandlers(engine rest.Engine, ar ArtworkRepository, aur auth.Reposit
 	engine.Post("/users/:alias/artworks", addArtwork(ar), authenticated)
 	engine.Delete("/artworks/:id", deleteArtwork(ar), authenticated)
 
-	engine.Put("/artworks/:artworkId/reactions/:alias", setArtworkReaction(ar), authenticated)
+	engine.Post("/artworks/:id/comments", addComment(ar), authenticated)
+
+	engine.Put("/artworks/:artworkId/reactions/:alias", setReaction(ar), authenticated)
 }
 
 func addArtwork(ar ArtworkRepository) http.HandlerFunc {
@@ -72,7 +74,7 @@ func deleteArtwork(ar ArtworkRepository) http.HandlerFunc {
 	}
 }
 
-func setArtworkReaction(ar ArtworkRepository) http.HandlerFunc {
+func setReaction(ar ArtworkRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
 		// the path user must match the authorised one
@@ -91,17 +93,44 @@ func setArtworkReaction(ar ArtworkRepository) http.HandlerFunc {
 
 		var date = time.Now()
 
-		switch err = ar.SetReaction(user.Id, rest.GetParam(request, "artworkId"), date, data); err {
-		case nil:
-			JSON.Ok(writer, struct {
-				Reaction ReactionType
-				Date     time.Time
-			}{
-				data.Reaction,
-				date,
-			})
-		default:
+		if err = ar.SetReaction(user.Id, rest.GetParam(request, "artworkId"), date, data); err != nil {
 			JSON.InternalServerError(writer, err)
+			return
 		}
+
+		JSON.Ok(writer, struct {
+			Reaction ReactionType
+			Date     time.Time
+		}{
+			data.Reaction,
+			date,
+		})
+	}
+}
+
+func addComment(ar ArtworkRepository) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+
+		data, err := JSON.DecodeValidate[CommentData](request)
+		if err != nil {
+			JSON.ValidationError(writer, err)
+			return
+		}
+
+		var artworkId = rest.GetParam(request, "id")
+		id, date, err := ar.AddComment(auth.GetUser(request).Id, artworkId, data)
+
+		if err != nil {
+			JSON.InternalServerError(writer, err)
+			return
+		}
+
+		JSON.Ok(writer, struct {
+			Id   string
+			Date time.Time
+		}{
+			Id:   id,
+			Date: date,
+		})
 	}
 }

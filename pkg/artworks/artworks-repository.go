@@ -12,6 +12,7 @@ type ArtworkRepository interface {
 	AddArtwork(data AddArtworkData, userId string) (string, time.Time, error)
 	DeleteArtwork(artworkId string, userId string) bool
 	SetReaction(userId string, artworkId string, date time.Time, feedback ReactionData) error
+	AddComment(userId string, artworkId string, data CommentData) (id string, date time.Time, err error)
 }
 
 type artworkRepository struct {
@@ -107,4 +108,21 @@ func (ar *artworkRepository) removeReaction(userId string, artworkId string) err
 		artworkId, userId)
 
 	return err
+}
+
+func (ar *artworkRepository) AddComment(userId string, artworkId string, data CommentData) (id string, date time.Time, err error) {
+
+	newId, err := uuid.NewV4()
+	if err != nil {
+		return id, date, err
+	}
+
+	id = newId.String()
+	date = time.Now()
+
+	_, err = ar.Connection.Exec(`
+		INSERT INTO artwork_comments (id, artwork, user, comment, date) VALUES (?, ?, ?, ?, ?)`,
+		id, artworkId, userId, data.Comment, date)
+
+	return id, date, err
 }

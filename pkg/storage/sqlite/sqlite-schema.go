@@ -66,5 +66,16 @@ CREATE TABLE
 		CONSTRAINT artwork_user_pk PRIMARY KEY (artwork, user)
 	);
 
+CREATE TABLE
+	IF NOT EXISTS artwork_comments (
+		id TEXT NOT NULL PRIMARY KEY,
+		artwork TEXT NOT NULL,
+		user TEXT NOT NULL,
+		comment TEXT NOT NULL,
+		date	datetime NOT NULL,
+		CONSTRAINT artwork_fk FOREIGN KEY (artwork) REFERENCES artworks (id) ON DELETE CASCADE,
+		CONSTRAINT user_fk FOREIGN KEY (user) REFERENCES users (id) ON DELETE CASCADE
+	);
+
 COMMIT;
 `

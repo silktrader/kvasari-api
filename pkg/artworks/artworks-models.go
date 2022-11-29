@@ -53,6 +53,8 @@ func (data AddArtworkData) Validate() error {
 	)
 }
 
+// Reactions
+
 type ReactionType string
 
 const (
@@ -68,5 +70,21 @@ type ReactionData struct {
 }
 
 func (data ReactionData) Validate() error {
-	return validation.ValidateStruct(&data, validation.Field(&data.Reaction, validation.In(reactions...)))
+	return validation.ValidateStruct(&data, validation.Field(&data.Reaction,
+		validation.Required,
+		validation.In(reactions...),
+	))
+}
+
+// Comments
+
+type CommentData struct {
+	Comment string
+}
+
+func (data CommentData) Validate() error {
+	return validation.ValidateStruct(&data, validation.Field(&data.Comment,
+		validation.Required,
+		validation.Length(10, 3000),
+	))
 }
