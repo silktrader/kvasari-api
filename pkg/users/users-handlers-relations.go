@@ -2,16 +2,18 @@ package users
 
 import (
 	"fmt"
-	"github.com/julienschmidt/httprouter"
 	"github.com/silktrader/kvasari/pkg/auth"
 	JSON "github.com/silktrader/kvasari/pkg/json-utilities"
+	"github.com/silktrader/kvasari/pkg/rest"
 	"net/http"
 )
 
+// tk rewrite
+// getFollowers handles the unauthenticated "/users/:alias/followers" route
 func getFollowers(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
-		var targetAlias = httprouter.ParamsFromContext(request.Context()).ByName("alias")
+		var targetAlias = rest.GetParam(request, "alias")
 
 		// check whether the user exists for gracious feedback
 		var targetExists = ur.ExistsUserAlias(targetAlias)
@@ -31,13 +33,14 @@ func getFollowers(ur UserRepository) http.HandlerFunc {
 	}
 }
 
+// followUser handles the POST "/users/:alias/followed" route
 func followUser(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
 		// ensure that the follower's alias matches the authenticated user's
 		var follower = auth.MustGetUser(request)
-		if follower.Alias != httprouter.ParamsFromContext(request.Context()).ByName("alias") {
-			JSON.Unauthorised(writer)
+		if follower.Alias != rest.GetParam(request, "alias") {
+			JSON.Forbidden(writer)
 			return
 		}
 
@@ -72,18 +75,19 @@ func followUser(ur UserRepository) http.HandlerFunc {
 	}
 }
 
+// unfollowUser handles the DELETE "/users/:alias/followed/:target" route
 func unfollowUser(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
 		// ensure that the follower's alias matches the authenticated user's
 		var follower = auth.MustGetUser(request)
-		if follower.Alias != httprouter.ParamsFromContext(request.Context()).ByName("alias") {
-			JSON.Unauthorised(writer)
+		if follower.Alias != rest.GetParam(request, "alias") {
+			JSON.Forbidden(writer)
 			return
 		}
 
 		// attempt to sanitise target alias before queries
-		var targetAlias = httprouter.ParamsFromContext(request.Context()).ByName("target")
+		var targetAlias = rest.GetParam(request, "target")
 		if err := ValidateUserAlias(targetAlias); err != nil {
 			JSON.ValidationError(writer, err)
 			return
@@ -106,13 +110,14 @@ func unfollowUser(ur UserRepository) http.HandlerFunc {
 	}
 }
 
+// banUser handles the POST "/users/:alias/bans" route
 func banUser(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
 		// ensure that the banning user matches the authenticated one
 		var source = auth.MustGetUser(request)
-		if source.Alias != httprouter.ParamsFromContext(request.Context()).ByName("alias") {
-			JSON.Unauthorised(writer)
+		if source.Alias != rest.GetParam(request, "alias") {
+			JSON.Forbidden(writer)
 			return
 		}
 
@@ -141,18 +146,19 @@ func banUser(ur UserRepository) http.HandlerFunc {
 	}
 }
 
+// unbanUser handles the DELETE "/users/:alias/bans/:target" route
 func unbanUser(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
 		// ensure that the user taking action is authorised
 		var source = auth.MustGetUser(request)
-		if source.Alias != httprouter.ParamsFromContext(request.Context()).ByName("alias") {
+		if source.Alias != rest.GetParam(request, "alias") {
 			JSON.Unauthorised(writer)
 			return
 		}
 
 		// attempt to sanitise target alias before queries
-		var targetAlias = httprouter.ParamsFromContext(request.Context()).ByName("target")
+		var targetAlias = rest.GetParam(request, "target")
 		if err := ValidateUserAlias(targetAlias); err != nil {
 			JSON.ValidationError(writer, err)
 			return
@@ -175,12 +181,13 @@ func unbanUser(ur UserRepository) http.HandlerFunc {
 	}
 }
 
+// getBans handles the GET "/users/:alias/bans" route
 func getBans(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
 		// check whether the user has legitimate access to the route
 		var user = auth.MustGetUser(request)
-		if user.Alias != httprouter.ParamsFromContext(request.Context()).ByName("alias") {
+		if user.Alias != rest.GetParam(request, "alias") {
 			JSON.Unauthorised(writer)
 			return
 		}
