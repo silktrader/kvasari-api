@@ -52,6 +52,10 @@ func Unauthorised(writer http.ResponseWriter) {
 	writer.WriteHeader(http.StatusUnauthorized)
 }
 
+func Forbidden(writer http.ResponseWriter) {
+	writer.WriteHeader(http.StatusForbidden)
+}
+
 func BadRequestWithMessage(writer http.ResponseWriter, message string) {
 	encodeJSON(writer, http.StatusBadRequest, newHttpMessage(message))
 }

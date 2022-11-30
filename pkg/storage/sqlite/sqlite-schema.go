@@ -1,5 +1,6 @@
 package sqlite
 
+// language=sqlite
 const schema = `
 BEGIN TRANSACTION;
 

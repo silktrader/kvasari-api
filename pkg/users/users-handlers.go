@@ -12,12 +12,12 @@ func RegisterHandlers(engine rest.Engine, ur UserRepository, ar auth.Repository)
 
 	var authenticated = auth.Auth(ar)
 
+	engine.Post("/sessions", login(ur))
 	engine.Get("/users", getUsers(ur), authenticated)
 	engine.Post("/users", addUser(ur))
 
 	// followers
 	engine.Get("/users/:alias/followers", getFollowers(ur))
-	engine.Get("/me/followers", getSelfFollowers(ur), authenticated)
 	engine.Post("/users/:alias/followed", followUser(ur), authenticated)
 	engine.Delete("/users/:alias/followed/:target", unfollowUser(ur), authenticated)
 
@@ -29,7 +29,6 @@ func RegisterHandlers(engine rest.Engine, ur UserRepository, ar auth.Repository)
 	// user details
 	engine.Put("/users/:alias/name", updateName(ur), authenticated)
 	engine.Put("/users/:alias/alias", updateAlias(ur), authenticated)
-
 	engine.Get("/users/:alias/profile", getProfile(ur), authenticated)
 
 	// doesn't return a handler, as it's already present in the original scope
@@ -120,6 +119,36 @@ func updateAlias(ur UserRepository) http.HandlerFunc {
 		default:
 			JSON.InternalServerError(writer, err)
 		}
+	}
+}
+
+func login(ur UserRepository) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+
+		const message = "Authentication failed due to wrong credentials."
+		sessionData, err := JSON.DecodeValidate[SessionData](request)
+		if err != nil {
+			// debatable status code choice; 401 is inappropriate without HTTP auth and 403 misses the point
+			JSON.BadRequestWithMessage(writer, message)
+			return
+		}
+
+		// a mere user existence check
+		user, err := ur.GetUserByAlias(sessionData.Alias)
+		if err != nil {
+			JSON.BadRequestWithMessage(writer, message)
+			return
+		}
+
+		// one would set refresh and access tokens in the response but for the moment a status suffices
+		JSON.Ok(writer, struct {
+			Id     string
+			Status string
+		}{
+			Id:     user.Id,
+			Status: "authenticated",
+		})
+
 	}
 }
 

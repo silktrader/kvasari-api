@@ -8,6 +8,7 @@ import (
 
 var nameRules = []validation.Rule{validation.Required, validation.Length(5, 50)}
 var aliasRules = []validation.Rule{validation.Required, validation.Length(5, 16), is.UTFLetterNumeric}
+var passwordRules = []validation.Rule{validation.Required, validation.Length(8, 50)}
 
 type User struct {
 	Id      string
@@ -16,6 +17,18 @@ type User struct {
 	Email   string
 	Created time.Time
 	Updated time.Time
+}
+
+// SessionData provides the data to log in
+type SessionData struct {
+	Alias    string
+	Password string
+}
+
+func (data SessionData) Validate() error {
+	return validation.ValidateStruct(&data,
+		validation.Field(&data.Alias, aliasRules...),
+		validation.Field(&data.Password, passwordRules...))
 }
 
 type AddUserData struct {
@@ -29,8 +42,8 @@ func (data AddUserData) Validate() error {
 	return validation.ValidateStruct(&data,
 		validation.Field(&data.Name, nameRules...),
 		validation.Field(&data.Alias, aliasRules...),
+		validation.Field(&data.Password, passwordRules...),
 		validation.Field(&data.Email, validation.Required, is.Email),
-		validation.Field(&data.Password, validation.Required, validation.Length(8, 50)),
 	)
 }
 
