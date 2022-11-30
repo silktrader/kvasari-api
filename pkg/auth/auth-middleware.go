@@ -53,8 +53,8 @@ func parseBearer(request *http.Request) (string, error) {
 	return "", errors.New("bad authorization header")
 }
 
-// GetUser fetches the user's ID from the authorisation header, assuming the handler includes auth middleware.
-func GetUser(request *http.Request) User {
+// MustGetUser fetches the user's ID from the authorisation header, assuming the handler includes auth middleware.
+func MustGetUser(request *http.Request) User {
 	// one could return an error to detect a possibly missing auth middleware
 	// but this is an exceptional occurrence stemming from careless auth configuration
 	var userValue = request.Context().Value(userKey)

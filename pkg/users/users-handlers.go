@@ -29,7 +29,6 @@ func RegisterHandlers(engine rest.Engine, ur UserRepository, ar auth.Repository)
 	// user details
 	engine.Put("/users/:alias/name", updateName(ur), authenticated)
 	engine.Put("/users/:alias/alias", updateAlias(ur), authenticated)
-	engine.Get("/users/:alias/profile", getProfile(ur), authenticated)
 
 	// doesn't return a handler, as it's already present in the original scope
 }
@@ -78,7 +77,7 @@ func updateName(ur UserRepository) http.HandlerFunc {
 		}
 
 		// authorise or fail
-		var user = auth.GetUser(request)
+		var user = auth.MustGetUser(request)
 		if user.Alias != httprouter.ParamsFromContext(request.Context()).ByName("alias") {
 			JSON.Unauthorised(writer)
 			return
@@ -104,7 +103,7 @@ func updateAlias(ur UserRepository) http.HandlerFunc {
 		}
 
 		// authorise or fail
-		var user = auth.GetUser(request)
+		var user = auth.MustGetUser(request)
 		if user.Alias != httprouter.ParamsFromContext(request.Context()).ByName("alias") {
 			JSON.Unauthorised(writer)
 			return
@@ -149,25 +148,5 @@ func login(ur UserRepository) http.HandlerFunc {
 			Status: "authenticated",
 		})
 
-	}
-}
-
-func getProfile(ur UserRepository) http.HandlerFunc {
-	return func(writer http.ResponseWriter, request *http.Request) {
-
-		// check whether the user has legitimate access to the route
-		var user = auth.GetUser(request)
-		if user.Alias != httprouter.ParamsFromContext(request.Context()).ByName("alias") {
-			JSON.Unauthorised(writer)
-			return
-		}
-
-		profile, err := ur.GetProfileData(user.Id)
-		if err != nil {
-			JSON.InternalServerError(writer, err) // tk disambiguate
-			return
-		}
-
-		JSON.Ok(writer, profile)
 	}
 }

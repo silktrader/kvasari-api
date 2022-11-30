@@ -18,7 +18,6 @@ type UserRepository interface {
 	GetUserByAlias(alias string) (user User, err error)
 	UpdateName(userId string, newName string) error
 	UpdateAlias(userId string, newAlias string) error
-	GetProfileData(userId string) (ProfileData, error)
 
 	IsFollowing(followerId string, targetId string) bool
 	Follow(followerId string, targetAlias string) error
@@ -28,6 +27,7 @@ type UserRepository interface {
 	Ban(sourceId string, targetAlias string) error
 	Unban(sourceId string, targetAlias string) error
 	GetBans(sourceId string) ([]BannedUser, error)
+	GetUserRelations(userId string) ([]RelationData, []RelationData, error)
 }
 
 type userRepository struct {
@@ -40,6 +40,10 @@ var (
 	ErrDupBan      = errors.New("user is already banned")
 	ErrAliasTaken  = errors.New("alias is already taken")
 )
+
+func closeRows(rows *sql.Rows) {
+	_ = rows.Close()
+}
 
 func NewRepository(connection *sql.DB) UserRepository {
 	return &userRepository{connection}
@@ -98,6 +102,7 @@ func (ur *userRepository) GetFollowers(userAlias string) ([]Follower, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer closeRows(rows)
 
 	for rows.Next() {
 		var follower Follower
@@ -108,9 +113,6 @@ func (ur *userRepository) GetFollowers(userAlias string) ([]Follower, error) {
 	}
 
 	if err = rows.Err(); err != nil {
-		return followers, err
-	}
-	if err = rows.Close(); err != nil {
 		return followers, err
 	}
 
@@ -211,15 +213,51 @@ func (ur *userRepository) UpdateAlias(userId string, newAlias string) error {
 	return err
 }
 
-func (ur *userRepository) GetProfileData(userId string) (ProfileData, error) {
+func (ur *userRepository) GetUserRelations(userId string) ([]RelationData, []RelationData, error) {
 
-	// fetch user relations
-	followers, followed, err := ur.GetUserRelations(userId)
+	var followers, followed = make([]RelationData, 0), make([]RelationData, 0)
+
+	rows, err := ur.Connection.Query(`
+		SELECT id, is_follower, alias, name, date
+		FROM (
+		    SELECT follower as id, TRUE as is_follower, date
+		    FROM   followers
+		    WHERE  target = ?
+		    UNION
+		    SELECT target as id, FALSE as is_follower, date
+		    FROM   followers
+		    WHERE  follower = ?
+		) as x
+		JOIN users USING (id)
+		ORDER BY date DESC`,
+		userId,
+		userId,
+	)
 
 	if err != nil {
-		return ProfileData{}, err
+		return followers, followed, err
 	}
 
-	var data = ProfileData{followers, followed}
-	return data, err
+	defer closeRows(rows)
+
+	var isFollower bool
+	for rows.Next() {
+		var relation RelationData
+		if err = rows.Scan(&relation.Id, &isFollower, &relation.Alias, &relation.Name, &relation.Date); err != nil {
+			return followers, followed, err
+		}
+
+		// append the relation to either followers or followed slices
+		if isFollower {
+			followers = append(followers, relation)
+		} else {
+			followed = append(followed, relation)
+		}
+	}
+
+	if err = rows.Err(); err != nil {
+		return followers, followed, err
+	}
+
+	return followers, followed, err
 }

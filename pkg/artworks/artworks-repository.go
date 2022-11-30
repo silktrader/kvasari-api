@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gofrs/uuid"
+	"github.com/silktrader/kvasari/pkg/users"
 	"time"
 )
 
@@ -14,19 +15,27 @@ type ArtworkRepository interface {
 	SetReaction(userId string, artworkId string, date time.Time, feedback ReactionData) error
 	AddComment(userId string, artworkId string, data CommentData) (id string, date time.Time, err error)
 	DeleteComment(userId string, commentId string) error
+
+	GetProfileData(userId string) (ProfileData, error)
+	GetUserArtworks(userId string, pageSize int, page int) ([]ArtworkProfilePreview, error)
 }
 
 type artworkRepository struct {
-	Connection *sql.DB
+	Connection     *sql.DB
+	UserRepository users.UserRepository
 }
 
-func NewRepository(connection *sql.DB) ArtworkRepository {
-	return &artworkRepository{connection}
+func NewRepository(connection *sql.DB, userRepository users.UserRepository) ArtworkRepository {
+	return &artworkRepository{connection, userRepository}
 }
 
 var (
 	ErrNotFound = errors.New("not found")
 )
+
+func closeRows(rows *sql.Rows) {
+	_ = rows.Close()
+}
 
 func (ar *artworkRepository) AddArtwork(data AddArtworkData, userId string) (id string, updated time.Time, err error) {
 	// generate a new unique ID server side
@@ -144,4 +153,45 @@ func (ar *artworkRepository) DeleteComment(userId string, commentId string) erro
 		return ErrNotFound
 	}
 	return err
+}
+
+func (ar *artworkRepository) GetProfileData(userId string) (ProfileData, error) {
+
+	// fetch the user's relations
+	followers, followed, err := ar.UserRepository.GetUserRelations(userId)
+
+	if err != nil {
+		return ProfileData{}, err
+	}
+
+	// fetch the user's sorted artwork
+	artworks, err := ar.GetUserArtworks(userId, 20, 0)
+
+	// return actual data or last error
+	return ProfileData{artworks, followers, followed}, err
+}
+
+func (ar *artworkRepository) GetUserArtworks(userId string, pageSize int, page int) ([]ArtworkProfilePreview, error) {
+
+	var artworks = make([]ArtworkProfilePreview, 0)
+	rows, err := ar.Connection.Query(`
+		SELECT id, title, picture_url, added FROM artworks WHERE author_id = ? ORDER BY added DESC LIMIT ? OFFSET ?`,
+		userId, pageSize, page,
+	)
+
+	if err != nil {
+		return artworks, err
+	}
+
+	defer closeRows(rows)
+
+	for rows.Next() {
+		var artwork ArtworkProfilePreview
+		if err = rows.Scan(&artwork.ID, &artwork.Title, &artwork.PictureURL, &artwork.Added); err != nil {
+			return artworks, err
+		}
+		artworks = append(artworks, artwork)
+	}
+
+	return artworks, rows.Err()
 }

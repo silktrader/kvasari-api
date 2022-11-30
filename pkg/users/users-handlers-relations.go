@@ -35,7 +35,7 @@ func followUser(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
 		// ensure that the follower's alias matches the authenticated user's
-		var follower = auth.GetUser(request)
+		var follower = auth.MustGetUser(request)
 		if follower.Alias != httprouter.ParamsFromContext(request.Context()).ByName("alias") {
 			JSON.Unauthorised(writer)
 			return
@@ -76,7 +76,7 @@ func unfollowUser(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
 		// ensure that the follower's alias matches the authenticated user's
-		var follower = auth.GetUser(request)
+		var follower = auth.MustGetUser(request)
 		if follower.Alias != httprouter.ParamsFromContext(request.Context()).ByName("alias") {
 			JSON.Unauthorised(writer)
 			return
@@ -110,7 +110,7 @@ func banUser(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
 		// ensure that the banning user matches the authenticated one
-		var source = auth.GetUser(request)
+		var source = auth.MustGetUser(request)
 		if source.Alias != httprouter.ParamsFromContext(request.Context()).ByName("alias") {
 			JSON.Unauthorised(writer)
 			return
@@ -145,7 +145,7 @@ func unbanUser(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
 		// ensure that the user taking action is authorised
-		var source = auth.GetUser(request)
+		var source = auth.MustGetUser(request)
 		if source.Alias != httprouter.ParamsFromContext(request.Context()).ByName("alias") {
 			JSON.Unauthorised(writer)
 			return
@@ -179,7 +179,7 @@ func getBans(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
 		// check whether the user has legitimate access to the route
-		var user = auth.GetUser(request)
+		var user = auth.MustGetUser(request)
 		if user.Alias != httprouter.ParamsFromContext(request.Context()).ByName("alias") {
 			JSON.Unauthorised(writer)
 			return
@@ -193,55 +193,4 @@ func getBans(ur UserRepository) http.HandlerFunc {
 
 		JSON.Ok(writer, banned)
 	}
-}
-
-func (ur *userRepository) GetUserRelations(userId string) ([]RelationData, []RelationData, error) {
-
-	var followers, followed = make([]RelationData, 0), make([]RelationData, 0)
-
-	rows, err := ur.Connection.Query(`
-		SELECT id, is_follower, alias, name, date
-		FROM (
-		    SELECT follower as id, TRUE as is_follower, date
-		    FROM   followers
-		    WHERE  target = ?
-		    UNION
-		    SELECT target as id, FALSE as is_follower, date
-		    FROM   followers
-		    WHERE  follower = ?
-		) as x
-		JOIN users USING (id)
-		ORDER BY date DESC`,
-		userId,
-		userId,
-	)
-
-	if err != nil {
-		return followers, followed, err
-	}
-
-	var isFollower bool
-	for rows.Next() {
-		var relation RelationData
-		if err = rows.Scan(&relation.Id, &isFollower, &relation.Alias, &relation.Name, &relation.Date); err != nil {
-			return followers, followed, err
-		}
-
-		// append the relation to either followers or followed slices
-		if isFollower {
-			followers = append(followers, relation)
-		} else {
-			followed = append(followed, relation)
-		}
-	}
-
-	if err = rows.Err(); err != nil {
-		return followers, followed, err
-	}
-
-	if err = rows.Close(); err != nil {
-		return followers, followed, err
-	}
-
-	return followers, followed, err
 }

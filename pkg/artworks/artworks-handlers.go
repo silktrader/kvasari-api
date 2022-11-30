@@ -13,8 +13,10 @@ func RegisterHandlers(engine rest.Engine, ar ArtworkRepository, aur auth.Reposit
 
 	var authenticated = auth.Auth(aur)
 
-	engine.Post("/users/:alias/artworks", addArtwork(ar), authenticated)
-	engine.Delete("/artworks/:id", deleteArtwork(ar), authenticated)
+	engine.Post("/users/:alias/artworks", addArtwork(ar), authenticated) // tk review path
+	engine.Get("/users/:alias/profile", getProfile(ar), authenticated)
+
+	engine.Delete("/artworks/:id", deleteArtwork(ar), authenticated) // tk review path
 
 	engine.Post("/artworks/:id/comments", addComment(ar), authenticated)
 	engine.Delete("/artworks/:id/comments/:commentId", deleteComment(ar), authenticated)
@@ -33,7 +35,7 @@ func addArtwork(ar ArtworkRepository) http.HandlerFunc {
 		}
 
 		// ensure that the follower's alias matches the authenticated user's
-		var user = auth.GetUser(request)
+		var user = auth.MustGetUser(request)
 		if user.Alias != rest.GetParam(request, "alias") {
 			JSON.Unauthorised(writer)
 			return
@@ -67,7 +69,7 @@ func deleteArtwork(ar ArtworkRepository) http.HandlerFunc {
 		}
 
 		// issues a bad request regardless of authorisation issues to deny information about existing resources
-		if deleted := ar.DeleteArtwork(artworkId, auth.GetUser(request).Id); deleted {
+		if deleted := ar.DeleteArtwork(artworkId, auth.MustGetUser(request).Id); deleted {
 			JSON.NoContent(writer)
 		} else {
 			JSON.BadRequest(writer)
@@ -79,7 +81,7 @@ func setReaction(ar ArtworkRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
 		// the path user must match the authorised one
-		var user = auth.GetUser(request)
+		var user = auth.MustGetUser(request)
 		if user.Alias != rest.GetParam(request, "alias") {
 			JSON.Unauthorised(writer)
 			return
@@ -119,7 +121,7 @@ func addComment(ar ArtworkRepository) http.HandlerFunc {
 		}
 
 		var artworkId = rest.GetParam(request, "id")
-		id, date, err := ar.AddComment(auth.GetUser(request).Id, artworkId, data)
+		id, date, err := ar.AddComment(auth.MustGetUser(request).Id, artworkId, data)
 
 		if err != nil {
 			JSON.InternalServerError(writer, err)
@@ -139,7 +141,7 @@ func addComment(ar ArtworkRepository) http.HandlerFunc {
 func deleteComment(ar ArtworkRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
-		switch err := ar.DeleteComment(auth.GetUser(request).Id, rest.GetParam(request, "commentId")); err {
+		switch err := ar.DeleteComment(auth.MustGetUser(request).Id, rest.GetParam(request, "commentId")); err {
 		case nil:
 			JSON.NoContent(writer)
 		case ErrNotFound:
@@ -147,5 +149,25 @@ func deleteComment(ar ArtworkRepository) http.HandlerFunc {
 		default:
 			JSON.InternalServerError(writer, err)
 		}
+	}
+}
+
+func getProfile(ar ArtworkRepository) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+
+		// check whether the user has legitimate access to the route
+		var user = auth.MustGetUser(request)
+		if user.Alias != rest.GetParam(request, "alias") {
+			JSON.Forbidden(writer)
+			return
+		}
+
+		profile, err := ar.GetProfileData(user.Id)
+		if err != nil {
+			JSON.InternalServerError(writer, err) // tk disambiguate
+			return
+		}
+
+		JSON.Ok(writer, profile)
 	}
 }

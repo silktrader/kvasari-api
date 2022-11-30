@@ -102,17 +102,9 @@ func (data FollowUserData) Validate() error {
 	return validation.ValidateStruct(&data, validation.Field(&data.TargetAlias, aliasRules...))
 }
 
-// User stats
-
 type RelationData struct {
 	Id    string // debatable inclusion
 	Alias string
 	Name  string
 	Date  time.Time
-}
-
-type ProfileData struct {
-	//Artworks
-	Followers []RelationData
-	Followed  []RelationData
 }

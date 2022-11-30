@@ -3,6 +3,7 @@ package artworks
 import (
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/go-ozzo/ozzo-validation/is"
+	"github.com/silktrader/kvasari/pkg/users"
 	"time"
 )
 
@@ -87,4 +88,19 @@ func (data CommentData) Validate() error {
 		validation.Required,
 		validation.Length(10, 3000),
 	))
+}
+
+// Profile Response DTOs
+
+type ProfileData struct {
+	Artworks  []ArtworkProfilePreview
+	Followers []users.RelationData
+	Followed  []users.RelationData
+}
+
+type ArtworkProfilePreview struct {
+	ID         string
+	Title      string
+	PictureURL string // ideally, a server generated preview
+	Added      time.Time
 }

@@ -115,7 +115,7 @@ func run() error {
 	// tk look into passing pointers
 	var authRepository = auth.NewRepository(storage)
 	var usersRepository = users.NewRepository(storage)
-	var artworksRepository = artworks.NewRepository(storage)
+	var artworksRepository = artworks.NewRepository(storage, usersRepository)
 
 	users.RegisterHandlers(e, usersRepository, authRepository)
 	artworks.RegisterHandlers(e, artworksRepository, authRepository)
