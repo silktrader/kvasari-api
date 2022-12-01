@@ -9,7 +9,7 @@ import (
 )
 
 type ArtworkRepository interface {
-	AddArtwork(data AddArtworkData, userId string) (string, time.Time, error)
+	AddArtwork(data AddArtworkData, userId string) (string, string, error)
 	DeleteArtwork(artworkId string, userId string) bool
 	SetReaction(userId string, artworkId string, date time.Time, feedback ReactionData) error
 	AddComment(userId string, artworkId string, data CommentData) (id string, date time.Time, err error)
@@ -37,10 +37,10 @@ func closeRows(rows *sql.Rows) {
 	_ = rows.Close()
 }
 
-func (ar *artworkRepository) AddArtwork(data AddArtworkData, userId string) (string, time.Time, error) {
+func (ar *artworkRepository) AddArtwork(data AddArtworkData, userId string) (string, string, error) {
 
 	var id = rest.MustGetNewUUID()
-	var now = time.Now().UTC()
+	var now = time.Now().UTC().Format(time.RFC3339)
 
 	result, err := ar.Connection.Exec(`
 		INSERT INTO artworks(id, title, type, picture_url, author_id, description, year, location, created, added, updated)
@@ -203,9 +203,7 @@ func (ar *artworkRepository) GetStream(userId string, since string, latest strin
 	rows, err := ar.Connection.Query(`
 		SELECT id, title, picture_url, added, added > ? as new, deleted FROM artworks
 			WHERE author_id IN (SELECT target FROM followers WHERE follower = ?)
-			AND added < ?
-			OR added > ?
-			OR (deleted = TRUE AND added > ? AND added < ?)
+			AND added < ? OR added > ? OR (deleted = TRUE AND added > ? AND added < ?)
 			ORDER BY added DESC LIMIT 12;`,
 		latest, userId, since, latest, latest, since,
 	)

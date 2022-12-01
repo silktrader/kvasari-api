@@ -49,7 +49,7 @@ func addArtwork(ar ArtworkRepository) http.HandlerFunc {
 		case nil:
 			JSON.Created(writer, struct {
 				Id      string
-				Updated time.Time
+				Updated string
 			}{
 				Id:      id,
 				Updated: updated,
