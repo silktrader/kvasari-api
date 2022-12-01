@@ -1,9 +1,10 @@
 package artworks
 
 import (
-	validation "github.com/go-ozzo/ozzo-validation"
-	"github.com/go-ozzo/ozzo-validation/is"
+	validation "github.com/go-ozzo/ozzo-validation/v4"
+	"github.com/go-ozzo/ozzo-validation/v4/is"
 	"github.com/silktrader/kvasari/pkg/users"
+	"net/url"
 	"time"
 )
 
@@ -103,4 +104,22 @@ type ArtworkProfilePreview struct {
 	Title      string
 	PictureURL string // ideally, a server generated preview
 	Added      time.Time
+}
+
+// I wasted one hour of my life attempting to find out why my custom format wouldn't work
+// only to realise time.Parse expects specific numbers for hours, minutes, etc.
+var datesRule = validation.Date(time.RFC3339)
+
+func getStreamParams(streamParams url.Values) (since string, latest string, err error) {
+	since = streamParams.Get("since")
+	if err = validation.Validate(since, validation.Required, datesRule); err != nil {
+		return since, latest, err
+	}
+
+	latest = streamParams.Get("latest")
+	if err = validation.Validate(latest, validation.Required, datesRule); err != nil {
+		return since, latest, err
+	}
+
+	return since, latest, err
 }

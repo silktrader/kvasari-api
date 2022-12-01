@@ -18,6 +18,7 @@ type ArtworkRepository interface {
 
 	GetProfileData(userId string) (ProfileData, error)
 	GetUserArtworks(userId string, pageSize int, page int) ([]ArtworkProfilePreview, error)
+	GetStream(userId string, since string, latest string) (data StreamData, err error)
 }
 
 type artworkRepository struct {
@@ -194,4 +195,56 @@ func (ar *artworkRepository) GetUserArtworks(userId string, pageSize int, page i
 	}
 
 	return artworks, rows.Err()
+}
+
+type StreamData struct {
+	Artworks    []ArtworkProfilePreview
+	NewArtworks []ArtworkProfilePreview
+	DeletedIds  []string
+}
+
+func (ar *artworkRepository) GetStream(userId string, since string, latest string) (data StreamData, err error) {
+
+	var artworks []ArtworkProfilePreview
+	var newArtworks []ArtworkProfilePreview
+	var deletedIds []string
+
+	rows, err := ar.Connection.Query(`
+		SELECT id, title, picture_url, added, added > ? as new, deleted FROM artworks
+			WHERE author_id IN (SELECT target FROM followers WHERE follower = ?)
+			AND added < ?
+			OR added > ?
+			OR (deleted = TRUE AND added > ? AND added < ?)
+			ORDER BY added DESC LIMIT 12;`,
+		latest, userId, since, latest, latest, since,
+	)
+
+	if err != nil {
+		return data, err
+	}
+
+	defer closeRows(rows)
+
+	var deleted, recent bool
+	for rows.Next() {
+		var artwork ArtworkProfilePreview
+		if err = rows.Scan(&artwork.ID, &artwork.Title, &artwork.PictureURL, &artwork.Added, &recent, &deleted); err != nil {
+			return data, err
+		}
+
+		switch {
+		case recent:
+			newArtworks = append(newArtworks, artwork)
+		case deleted:
+			deletedIds = append(deletedIds, artwork.ID)
+		default:
+			artworks = append(artworks, artwork)
+		}
+	}
+
+	return StreamData{
+		Artworks:    artworks,
+		NewArtworks: newArtworks,
+		DeletedIds:  deletedIds,
+	}, rows.Err()
 }

@@ -4,7 +4,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/silktrader/kvasari/webui"
+	//"github.com/silktrader/kvasari/webui"
 	"io/fs"
 	"net/http"
 	"strings"

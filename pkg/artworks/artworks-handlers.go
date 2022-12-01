@@ -15,6 +15,7 @@ func RegisterHandlers(engine rest.Engine, ar ArtworkRepository, aur auth.Reposit
 
 	engine.Post("/users/:alias/artworks", addArtwork(ar), authenticated) // tk review path
 	engine.Get("/users/:alias/profile", getProfile(ar), authenticated)
+	engine.Get("/users/:alias/stream", getStream(ar), authenticated)
 
 	engine.Delete("/artworks/:id", deleteArtwork(ar), authenticated) // tk review path
 
@@ -152,6 +153,7 @@ func deleteComment(ar ArtworkRepository) http.HandlerFunc {
 	}
 }
 
+// getProfile handles the authenticated GET "/users/:alias/profile" route
 func getProfile(ar ArtworkRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
@@ -169,5 +171,33 @@ func getProfile(ar ArtworkRepository) http.HandlerFunc {
 		}
 
 		JSON.Ok(writer, profile)
+	}
+}
+
+// getStream handles the authenticated GET "/users/:alias/stream?since=date&latest=date" route
+func getStream(ar ArtworkRepository) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+
+		// check whether the user has legitimate access to the route
+		var user = auth.MustGetUser(request)
+		if user.Alias != rest.GetParam(request, "alias") {
+			JSON.Forbidden(writer)
+			return
+		}
+
+		// get and validate the two required parameters from the URL query
+		var since, latest, err = getStreamParams(request.URL.Query())
+		if err != nil {
+			JSON.ValidationError(writer, err)
+			return
+		}
+
+		stream, err := ar.GetStream(user.Id, since, latest)
+		if err != nil {
+			JSON.InternalServerError(writer, err) // tk handle
+			return
+		}
+
+		JSON.Ok(writer, stream)
 	}
 }
