@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/gofrs/uuid"
 	"github.com/mattn/go-sqlite3"
+	"github.com/silktrader/kvasari/pkg/rest"
 	"time"
 )
 
@@ -54,10 +54,8 @@ func (ur *userRepository) GetAll() (users []User, err error) {
 	if err != nil {
 		return nil, err
 	}
-	//defer func() {
-	//	err = rows.Close()
-	//}()
 
+	// tk refactor
 	var id, name, alias, email string
 	var created, updated time.Time
 
@@ -81,9 +79,7 @@ func (ur *userRepository) GetAll() (users []User, err error) {
 		return users, err
 	}
 
-	if err = rows.Close(); err != nil {
-		return users, err
-	}
+	defer closeRows(rows)
 
 	return users, err
 }
@@ -163,17 +159,12 @@ func (ur *userRepository) GetUserById(id string) (user User, err error) {
 
 func (ur *userRepository) Register(data AddUserData) (user *User, err error) {
 
-	// generate a new unique Id
-	id, err := uuid.NewV4()
-	if err != nil {
-		return nil, fmt.Errorf("couldn't generate a unique user id for %q: %w", data.Alias, err)
-	}
-
+	var id = rest.MustGetNewUUID()
 	var now = time.Now()
 
 	result, err := ur.Connection.Exec(
 		"INSERT INTO users(id, name, alias, email, salt, password, created, updated) VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
-		id.String(), data.Name, data.Alias, data.Email, data.Password, "", now, now)
+		id, data.Name, data.Alias, data.Email, data.Password, "", now, now)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't add user %q: %w", data.Alias, err)
 	}
@@ -183,7 +174,7 @@ func (ur *userRepository) Register(data AddUserData) (user *User, err error) {
 	}
 
 	return &User{
-		id.String(),
+		id,
 		data.Alias,
 		data.Name,
 		data.Email,

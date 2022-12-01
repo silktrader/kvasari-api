@@ -1,6 +1,7 @@
 package artworks
 
 import (
+	"database/sql"
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/go-ozzo/ozzo-validation/v4/is"
 	"github.com/silktrader/kvasari/pkg/users"
@@ -42,7 +43,7 @@ type AddArtworkData struct {
 	Location    string
 	Year        int
 	Type        ArtworkType
-	Created     time.Time
+	Created     sql.NullTime
 }
 
 func (data AddArtworkData) Validate() error {
@@ -51,7 +52,7 @@ func (data AddArtworkData) Validate() error {
 		validation.Field(&data.Title, validation.Required),
 		validation.Field(&data.PictureURL, validation.Required, is.URL),
 		validation.Field(&data.Year, validation.Min(-10000), validation.Max(10000)),
-		validation.Field(&data.Created, validation.Date("2000-12-25")),
+		validation.Field(&data.Created, validation.Date(time.RFC3339)),
 	)
 }
 

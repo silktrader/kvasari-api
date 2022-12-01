@@ -3,8 +3,7 @@ package artworks
 import (
 	"database/sql"
 	"errors"
-	"fmt"
-	"github.com/gofrs/uuid"
+	"github.com/silktrader/kvasari/pkg/rest"
 	"github.com/silktrader/kvasari/pkg/users"
 	"time"
 )
@@ -38,26 +37,23 @@ func closeRows(rows *sql.Rows) {
 	_ = rows.Close()
 }
 
-func (ar *artworkRepository) AddArtwork(data AddArtworkData, userId string) (id string, updated time.Time, err error) {
-	// generate a new unique ID server side
-	// SQLite has limited ability in this regard, while Postgresql and others have adequate features or extensions
-	newUUID, err := uuid.NewV4()
-	if err != nil {
-		return id, updated, fmt.Errorf("couldn't generate a unique user id for %q: %w", data.Title, err)
-	}
-	id = newUUID.String()
+func (ar *artworkRepository) AddArtwork(data AddArtworkData, userId string) (string, time.Time, error) {
 
-	var now = time.Now()
+	var id = rest.MustGetNewUUID()
+	var now = time.Now().UTC()
 
-	result, err := ar.Connection.Exec(
-		"INSERT INTO artworks(id, title, type, picture_url, author_id, description, year, location, created, added, updated) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+	result, err := ar.Connection.Exec(`
+		INSERT INTO artworks(id, title, type, picture_url, author_id, description, year, location, created, added, updated)
+		VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		id, data.Title, data.Type, data.PictureURL, userId, data.Description, data.Year, data.Location, data.Created, now, now)
+
+	// don't bother checking for unique constraints with UUID generation
 	if err != nil {
-		return id, updated, fmt.Errorf("couldn't add user %q: %w", data.Title, err)
+		return id, now, err
 	}
 	rows, err := result.RowsAffected()
-	if rows < 1 || err != nil {
-		return id, updated, err
+	if err != nil || rows < 1 {
+		return id, now, err
 	}
 
 	return id, now, nil
@@ -122,12 +118,7 @@ func (ar *artworkRepository) removeReaction(userId string, artworkId string) err
 
 func (ar *artworkRepository) AddComment(userId string, artworkId string, data CommentData) (id string, date time.Time, err error) {
 
-	newId, err := uuid.NewV4()
-	if err != nil {
-		return id, date, err
-	}
-
-	id = newId.String()
+	id = rest.MustGetNewUUID()
 	date = time.Now()
 
 	_, err = ar.Connection.Exec(`

@@ -2,6 +2,7 @@ package rest
 
 import (
 	"errors"
+	"github.com/gofrs/uuid"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 	"net/http"
@@ -94,4 +95,14 @@ func (e *Engine) Delete(path string, handlerFunc http.HandlerFunc, middleware ..
 
 func GetParam(request *http.Request, key string) string {
 	return httprouter.ParamsFromContext(request.Context()).ByName(key)
+}
+
+// MustGetNewUUID generates a new unique ID string, to be used as a DB key.
+// SQLite has limited ability in this regard, while Postgresql and others have adequate features or extensions.
+func MustGetNewUUID() string {
+	newUUID, err := uuid.NewV4()
+	if err != nil {
+		panic("couldn't generate a unique id")
+	}
+	return newUUID.String()
 }

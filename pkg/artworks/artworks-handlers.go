@@ -25,6 +25,7 @@ func RegisterHandlers(engine rest.Engine, ar ArtworkRepository, aur auth.Reposit
 	engine.Put("/artworks/:artworkId/reactions/:alias", setReaction(ar), authenticated)
 }
 
+// addArtwork handles the authenticated POST "/users/:alias/artworks" route
 func addArtwork(ar ArtworkRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
