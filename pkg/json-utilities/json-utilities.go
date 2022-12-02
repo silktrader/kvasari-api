@@ -3,6 +3,7 @@ package json_utilities
 import (
 	"encoding/json"
 	"errors"
+	"github.com/silktrader/kvasari/pkg/ntime"
 	"net/http"
 	"time"
 )
@@ -11,11 +12,11 @@ var errEncoding = errors.New("error while encoding response")
 
 type httpError struct {
 	Error     string
-	Timestamp time.Time
+	Timestamp ntime.NTime
 }
 
 func newHttpError(err error) *httpError {
-	return &httpError{err.Error(), time.Now()}
+	return &httpError{err.Error(), ntime.Now()}
 }
 
 type httpMessage struct {
@@ -64,6 +65,7 @@ func InternalServerError(writer http.ResponseWriter, err error) {
 	encoderJSONError(writer, http.StatusInternalServerError, err)
 }
 
+// ValidationError encodes a 400 BadRequest response with a JSON object, containing a timestamp and an error message.
 func ValidationError(writer http.ResponseWriter, err error) {
 	writer.Header().Set("Content-Type", "application/json")
 	writer.WriteHeader(http.StatusBadRequest)

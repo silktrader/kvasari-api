@@ -3,6 +3,7 @@ package users
 import (
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/go-ozzo/ozzo-validation/v4/is"
+	"github.com/silktrader/kvasari/pkg/ntime"
 	"time"
 )
 
@@ -15,8 +16,8 @@ type User struct {
 	Alias   string
 	Name    string
 	Email   string
-	Created time.Time
-	Updated time.Time
+	Created ntime.NTime
+	Updated ntime.NTime
 }
 
 // SessionData provides the data to log in

@@ -13,7 +13,7 @@ func RegisterHandlers(engine rest.Engine, ur UserRepository, ar auth.Repository)
 	var authenticated = auth.Auth(ar)
 
 	engine.Post("/sessions", login(ur))
-	engine.Get("/users", getUsers(ur), authenticated)
+	engine.Get("/users", getUsers(ur))
 	engine.Post("/users", addUser(ur))
 
 	// followers
@@ -33,8 +33,8 @@ func RegisterHandlers(engine rest.Engine, ur UserRepository, ar auth.Repository)
 	// doesn't return a handler, as it's already present in the original scope
 }
 
-// getUsers fetches all existing users. As neither authorisation nor authentication are required; this is clearly a temporary
-// expedient to facilitate development.
+// getUsers handles the GET "/users" route and fetches all existing users.
+// Neither authorisation nor authentication are required for development purposes.
 func getUsers(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		var users, err = ur.GetAll()
@@ -46,6 +46,7 @@ func getUsers(ur UserRepository) http.HandlerFunc {
 	}
 }
 
+// addUser handles the POST "/users" route
 func addUser(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
@@ -57,12 +58,14 @@ func addUser(ur UserRepository) http.HandlerFunc {
 		}
 
 		newUser, err := ur.Register(data)
-		if err != nil {
+		switch err {
+		case nil:
+			JSON.Created(writer, newUser)
+		case ErrDupUser:
+			JSON.BadRequestWithMessage(writer, "Email or alias already registered")
+		default:
 			JSON.InternalServerError(writer, err)
-			return
 		}
-
-		JSON.Created(writer, newUser)
 	}
 }
 
@@ -104,7 +107,7 @@ func updateAlias(ur UserRepository) http.HandlerFunc {
 
 		// authorise or fail
 		var user = auth.MustGetUser(request)
-		if user.Alias != httprouter.ParamsFromContext(request.Context()).ByName("alias") {
+		if user.Alias != rest.GetParam(request, "alias") {
 			JSON.Unauthorised(writer)
 			return
 		}
@@ -147,6 +150,5 @@ func login(ur UserRepository) http.HandlerFunc {
 			Id:     user.Id,
 			Status: "authenticated",
 		})
-
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/mattn/go-sqlite3"
+	"github.com/silktrader/kvasari/pkg/ntime"
 	"github.com/silktrader/kvasari/pkg/rest"
 	"time"
 )
@@ -39,6 +40,7 @@ var (
 	ErrNotFound    = errors.New("not found")
 	ErrDupBan      = errors.New("user is already banned")
 	ErrAliasTaken  = errors.New("alias is already taken")
+	ErrDupUser     = errors.New("email or alias is already registered")
 )
 
 func closeRows(rows *sql.Rows) {
@@ -50,38 +52,25 @@ func NewRepository(connection *sql.DB) UserRepository {
 }
 
 func (ur *userRepository) GetAll() (users []User, err error) {
-	rows, err := ur.Connection.Query("select id, name, alias, email, created, updated from users")
+
+	rows, err := ur.Connection.Query("SELECT id, name, alias, email, created, updated FROM users")
 	if err != nil {
 		return nil, err
 	}
 
-	// tk refactor
-	var id, name, alias, email string
-	var created, updated time.Time
+	defer closeRows(rows)
 
 	for rows.Next() {
-		// return partial results in case of errors
-		if err = rows.Scan(&id, &name, &alias, &email, &created, &updated); err != nil {
+		var user User
+		if err = rows.Scan(&user.Id, &user.Name, &user.Alias, &user.Email, &user.Created, &user.Updated); err != nil {
 			return users, err
 		}
 
-		users = append(users, User{
-			Id:      id,
-			Alias:   alias,
-			Name:    name,
-			Email:   email,
-			Created: created,
-			Updated: updated,
-		})
+		users = append(users, user)
 	}
 
-	if err = rows.Err(); err != nil {
-		return users, err
-	}
-
-	defer closeRows(rows)
-
-	return users, err
+	// return partial results in case of errors
+	return users, rows.Err()
 }
 
 func (ur *userRepository) GetFollowers(userAlias string) ([]Follower, error) {
@@ -157,17 +146,27 @@ func (ur *userRepository) GetUserById(id string) (user User, err error) {
 	return user, nil
 }
 
-func (ur *userRepository) Register(data AddUserData) (user *User, err error) {
+func (ur *userRepository) Register(data AddUserData) (*User, error) {
 
 	var id = rest.MustGetNewUUID()
-	var now = time.Now()
+	var now = ntime.Now()
 
-	result, err := ur.Connection.Exec(
-		"INSERT INTO users(id, name, alias, email, salt, password, created, updated) VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
-		id, data.Name, data.Alias, data.Email, data.Password, "", now, now)
+	result, err := ur.Connection.Exec(`
+		INSERT INTO users(id, name, alias, email, password, created, updated)
+		VALUES(?, ?, ?, ?, ?, ?, ?)`,
+		id, data.Name, data.Alias, data.Email, data.Password, now, now)
+
+	if sqliteErr, ok := err.(sqlite3.Error); ok {
+		if sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
+			return nil, ErrDupUser
+		}
+	}
+
+	// generic error
 	if err != nil {
 		return nil, fmt.Errorf("couldn't add user %q: %w", data.Alias, err)
 	}
+
 	rows, err := result.RowsAffected()
 	if rows < 1 || err != nil {
 		return nil, err

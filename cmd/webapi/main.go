@@ -31,7 +31,6 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/silktrader/kvasari/pkg/artworks"
 	"github.com/silktrader/kvasari/pkg/auth"
-	"github.com/silktrader/kvasari/pkg/globaltime"
 	"github.com/silktrader/kvasari/pkg/rest"
 	"github.com/silktrader/kvasari/pkg/storage/sqlite"
 	"github.com/silktrader/kvasari/pkg/users"
@@ -41,6 +40,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 )
 
 // main is the program entry point. The only purpose of this function is to call run() and set the exit code if there is
@@ -61,7 +61,7 @@ func main() {
 // * waits for any termination event: SIGTERM signal (UNIX), non-recoverable server error, etc.
 // * closes the principal web server
 func run() error {
-	rand.Seed(globaltime.Now().UnixNano())
+	rand.Seed(time.Now().UnixNano())
 	// Load Configuration and defaults
 	cfg, err := loadConfiguration()
 	if err != nil {
