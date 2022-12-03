@@ -13,6 +13,7 @@ type ArtworkRepository interface {
 	AddArtwork(data AddArtworkData, userId string) (string, string, error)
 	DeleteArtwork(artworkId string, userId string) bool
 	SetReaction(userId string, artworkId string, date ntime.NTime, feedback ReactionData) error
+	RemoveReaction(userId string, artworkId string) error
 	AddComment(userId string, artworkId string, data CommentData) (id string, date ntime.NTime, err error)
 	DeleteComment(userId string, commentId string) error
 
@@ -31,7 +32,8 @@ func NewRepository(connection *sql.DB, userRepository users.UserRepository) Artw
 }
 
 var (
-	ErrNotFound = errors.New("not found")
+	ErrNotFound    = errors.New("not found")
+	ErrNotModified = errors.New("not modified")
 )
 
 func closeRows(rows *sql.Rows) {
@@ -93,28 +95,43 @@ func (ar *artworkRepository) DeleteArtwork(artworkId string, userId string) bool
 
 func (ar *artworkRepository) SetReaction(userId string, artworkId string, date ntime.NTime, data ReactionData) error {
 
-	if data.Reaction == None {
-		return ar.removeReaction(userId, artworkId)
-	}
-	return ar.upsertReaction(userId, artworkId, date, data)
-}
-
-func (ar *artworkRepository) upsertReaction(userId string, artworkId string, date ntime.NTime, data ReactionData) error {
-	_, err := ar.Connection.Exec(`
+	res, err := ar.Connection.Exec(`
 		INSERT INTO artwork_feedback(artwork, user, reaction, date)
 		VALUES (?, ?, ?, ?)
-		ON CONFLICT (artwork, user) DO UPDATE SET reaction = ?, date = ?`,
-		artworkId, userId, data.Reaction, date, data.Reaction, date)
+		ON CONFLICT (artwork, user) DO UPDATE SET reaction = ?, date = ? WHERE reaction != ?`,
+		artworkId, userId, data.Reaction, date, data.Reaction, date, data.Reaction)
+
+	if err != nil {
+		return err
+	}
+
+	if changed, err := res.RowsAffected(); err != nil {
+		return err
+	} else if changed == 0 {
+		return ErrNotModified
+	}
 
 	return err
 }
 
-func (ar *artworkRepository) removeReaction(userId string, artworkId string) error {
-	_, err := ar.Connection.Exec(`
+func (ar *artworkRepository) RemoveReaction(userId string, artworkId string) error {
+	res, err := ar.Connection.Exec(`
 		DELETE FROM artwork_feedback WHERE artwork = ? AND user = ?`,
 		artworkId, userId)
 
-	return err
+	if err != nil {
+		return err
+	}
+
+	deleted, err := res.RowsAffected()
+	switch {
+	case err != nil:
+		return err
+	case deleted == 0:
+		return ErrNotFound
+	default:
+		return err
+	}
 }
 
 func (ar *artworkRepository) AddComment(userId string, artworkId string, data CommentData) (id string, date ntime.NTime, err error) {
@@ -197,6 +214,7 @@ type StreamData struct {
 
 func (ar *artworkRepository) GetStream(userId string, since string, latest string) (data StreamData, err error) {
 
+	// tk look into pop array of pointers
 	var artworks []ArtworkProfilePreview
 	var newArtworks []ArtworkProfilePreview
 	var deletedIds []string

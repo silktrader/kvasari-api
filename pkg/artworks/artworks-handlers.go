@@ -20,6 +20,7 @@ func RegisterHandlers(engine rest.Engine, ar ArtworkRepository, aur auth.Reposit
 	engine.Post("/artworks/:artworkId/comments", addComment(ar), authenticated)
 	engine.Delete("/artworks/:artworkId/comments/:commentId", deleteComment(ar), authenticated)
 	engine.Put("/artworks/:artworkId/reactions/:alias", setReaction(ar), authenticated)
+	engine.Delete("/artworks/:artworkId/reactions/:alias", removeReaction(ar), authenticated)
 
 	// user specific aggregates
 	engine.Get("/users/:alias/profile", getProfile(ar), authenticated)
@@ -76,6 +77,7 @@ func deleteArtwork(ar ArtworkRepository) http.HandlerFunc {
 	}
 }
 
+// setReaction handles the authenticated PUT "/artworks/:artworkId/reactions/:alias" route
 func setReaction(ar ArtworkRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
@@ -94,19 +96,47 @@ func setReaction(ar ArtworkRepository) http.HandlerFunc {
 		}
 
 		var date = ntime.Now()
+		err = ar.SetReaction(user.Id, rest.GetParam(request, "artworkId"), date, data)
 
-		if err = ar.SetReaction(user.Id, rest.GetParam(request, "artworkId"), date, data); err != nil {
+		// it's debatable whether 201 should be returned on first setting the reaction
+		switch err {
+		case nil:
+			JSON.Ok(writer, struct {
+				Status string
+				Date   ntime.NTime
+			}{"changed", date})
+			return
+
+		case ErrNotModified:
+			JSON.Ok(writer, struct{ Status string }{"unchanged"})
+			return
+
+		default:
 			JSON.InternalServerError(writer, err)
 			return
 		}
+	}
+}
 
-		JSON.Ok(writer, struct {
-			Reaction ReactionType
-			Date     ntime.NTime
-		}{
-			data.Reaction,
-			date,
-		})
+// removeReaction handles the DELETE "/artworks/:artworkId/reactions/:alias" path
+func removeReaction(ar ArtworkRepository) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+
+		// the alias must match the authorised one
+		var user = auth.MustGetUser(request)
+		if user.Alias != rest.GetParam(request, "alias") {
+			JSON.Forbidden(writer)
+			return
+		}
+
+		switch err := ar.RemoveReaction(user.Id, rest.GetParam(request, "artworkId")); err {
+		case nil:
+			JSON.NoContent(writer)
+		case ErrNotFound:
+			JSON.NotFound(writer, "Reaction not found, or unauthorised action")
+		default:
+			JSON.InternalServerError(writer, err)
+		}
 	}
 }
 

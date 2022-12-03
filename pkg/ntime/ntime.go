@@ -8,6 +8,7 @@ import (
 
 // NTime represents a nullable time.Time.
 // It can be used a scan destination and can be marshalled to JSON.
+// tk look into making these fields private and outcomes
 type NTime struct {
 	Time    time.Time
 	IsValid bool // false when Time is null, possibly redundant
@@ -48,4 +49,8 @@ func (nt NTime) Value() (driver.Value, error) {
 
 func Now() NTime {
 	return NTime{Time: time.Now().UTC(), IsValid: true}
+}
+
+func (nt *NTime) Before(compared NTime) bool {
+	return nt.Time.Before(compared.Time)
 }
