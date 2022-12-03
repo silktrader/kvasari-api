@@ -8,10 +8,9 @@ import (
 
 // NTime represents a nullable time.Time.
 // It can be used a scan destination and can be marshalled to JSON.
-// tk look into making these fields private and outcomes
 type NTime struct {
-	Time    time.Time
-	IsValid bool // false when Time is null, possibly redundant
+	time    time.Time
+	isValid bool // false when Time is null, possibly redundant
 }
 
 // UnmarshalJSON parses a RFC3339 time string into a time.Time object
@@ -24,33 +23,34 @@ func (nt *NTime) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (nt *NTime) MarshalJSON() ([]byte, error) {
+// MarshalJSON implements the Marshaller interface and operates on values rather than pointers, given NTime's heft.
+func (nt NTime) MarshalJSON() ([]byte, error) {
 	// for some obscure reason the quotes are necessary
-	if nt.IsValid {
-		return []byte(fmt.Sprintf("\"%s\"", nt.Time.UTC().Format(time.RFC3339))), nil
+	if nt.isValid {
+		return []byte(fmt.Sprintf("\"%s\"", nt.time.UTC().Format(time.RFC3339))), nil
 	}
 	return []byte("null"), nil
 }
 
 // Scan implements the Scanner interface.
 func (nt *NTime) Scan(value any) error {
-	nt.Time, nt.IsValid = value.(time.Time)
+	nt.time, nt.isValid = value.(time.Time)
 	return nil
 }
 
 // Value implements the driver Valuer interface.
 func (nt NTime) Value() (driver.Value, error) {
 	// arguable choice, would yield poor results with full-fledged DBs tk
-	if nt.IsValid {
-		return driver.Value(nt.Time.UTC().Format(time.RFC3339)), nil
+	if nt.isValid {
+		return driver.Value(nt.time.UTC().Format(time.RFC3339)), nil
 	}
 	return nil, nil
 }
 
 func Now() NTime {
-	return NTime{Time: time.Now().UTC(), IsValid: true}
+	return NTime{time: time.Now().UTC(), isValid: true}
 }
 
 func (nt *NTime) Before(compared NTime) bool {
-	return nt.Time.Before(compared.Time)
+	return nt.time.Before(compared.time)
 }
