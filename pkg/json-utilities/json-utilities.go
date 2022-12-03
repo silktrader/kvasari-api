@@ -5,7 +5,6 @@ import (
 	"errors"
 	"github.com/silktrader/kvasari/pkg/ntime"
 	"net/http"
-	"time"
 )
 
 var errEncoding = errors.New("error while encoding response")
@@ -21,11 +20,11 @@ func newHttpError(err error) *httpError {
 
 type httpMessage struct {
 	Message   string
-	Timestamp time.Time
+	Timestamp ntime.NTime
 }
 
 func newHttpMessage(message string) *httpMessage {
-	return &httpMessage{message, time.Now()}
+	return &httpMessage{message, ntime.Now()}
 }
 
 func Created(writer http.ResponseWriter, payload interface{}) {

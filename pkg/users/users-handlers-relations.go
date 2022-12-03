@@ -153,7 +153,7 @@ func unbanUser(ur UserRepository) http.HandlerFunc {
 		// ensure that the user taking action is authorised
 		var source = auth.MustGetUser(request)
 		if source.Alias != rest.GetParam(request, "alias") {
-			JSON.Unauthorised(writer)
+			JSON.Forbidden(writer)
 			return
 		}
 
@@ -188,7 +188,7 @@ func getBans(ur UserRepository) http.HandlerFunc {
 		// check whether the user has legitimate access to the route
 		var user = auth.MustGetUser(request)
 		if user.Alias != rest.GetParam(request, "alias") {
-			JSON.Unauthorised(writer)
+			JSON.Forbidden(writer)
 			return
 		}
 

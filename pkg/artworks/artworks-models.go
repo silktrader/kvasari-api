@@ -37,6 +37,7 @@ type Artwork struct {
 }
 
 type AddArtworkData struct {
+	AuthorId    string
 	Title       string
 	Description string
 	PictureURL  string

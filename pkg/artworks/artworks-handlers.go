@@ -1,31 +1,32 @@
 package artworks
 
 import (
-	"github.com/julienschmidt/httprouter"
 	"github.com/silktrader/kvasari/pkg/auth"
 	JSON "github.com/silktrader/kvasari/pkg/json-utilities"
+	"github.com/silktrader/kvasari/pkg/ntime"
 	"github.com/silktrader/kvasari/pkg/rest"
 	"net/http"
-	"time"
 )
 
 func RegisterHandlers(engine rest.Engine, ar ArtworkRepository, aur auth.Repository) {
 
 	var authenticated = auth.Auth(aur)
 
-	engine.Post("/users/:alias/artworks", addArtwork(ar), authenticated) // tk review path
+	// artworks management
+	engine.Post("/artworks", addArtwork(ar), authenticated)
+	engine.Delete("/artworks/:artworkId", deleteArtwork(ar), authenticated)
+
+	// feedback
+	engine.Post("/artworks/:artworkId/comments", addComment(ar), authenticated)
+	engine.Delete("/artworks/:artworkId/comments/:commentId", deleteComment(ar), authenticated)
+	engine.Put("/artworks/:artworkId/reactions/:alias", setReaction(ar), authenticated)
+
+	// user specific aggregates
 	engine.Get("/users/:alias/profile", getProfile(ar), authenticated)
 	engine.Get("/users/:alias/stream", getStream(ar), authenticated)
-
-	engine.Delete("/artworks/:id", deleteArtwork(ar), authenticated) // tk review path
-
-	engine.Post("/artworks/:id/comments", addComment(ar), authenticated)
-	engine.Delete("/artworks/:id/comments/:commentId", deleteComment(ar), authenticated)
-
-	engine.Put("/artworks/:artworkId/reactions/:alias", setReaction(ar), authenticated)
 }
 
-// addArtwork handles the authenticated POST "/users/:alias/artworks" route
+// addArtwork handles the authenticated POST "/artworks" route
 func addArtwork(ar ArtworkRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
@@ -36,10 +37,10 @@ func addArtwork(ar ArtworkRepository) http.HandlerFunc {
 			return
 		}
 
-		// ensure that the follower's alias matches the authenticated user's
+		// ensure that the author's ID matches the authenticated user's one
 		var user = auth.MustGetUser(request)
-		if user.Alias != rest.GetParam(request, "alias") {
-			JSON.Unauthorised(writer)
+		if user.Id != data.AuthorId {
+			JSON.Forbidden(writer)
 			return
 		}
 
@@ -60,15 +61,11 @@ func addArtwork(ar ArtworkRepository) http.HandlerFunc {
 	}
 }
 
+// deleteArtwork handles the authenticated DELETE "/artworks/:artworkId" route
 func deleteArtwork(ar ArtworkRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
-		var artworkId = httprouter.ParamsFromContext(request.Context()).ByName("id")
-
-		if artworkId == "" {
-			JSON.BadRequest(writer)
-			return
-		}
+		var artworkId = rest.GetParam(request, "artworkId")
 
 		// issues a bad request regardless of authorisation issues to deny information about existing resources
 		if deleted := ar.DeleteArtwork(artworkId, auth.MustGetUser(request).Id); deleted {
@@ -85,7 +82,7 @@ func setReaction(ar ArtworkRepository) http.HandlerFunc {
 		// the path user must match the authorised one
 		var user = auth.MustGetUser(request)
 		if user.Alias != rest.GetParam(request, "alias") {
-			JSON.Unauthorised(writer)
+			JSON.Forbidden(writer)
 			return
 		}
 
@@ -96,7 +93,7 @@ func setReaction(ar ArtworkRepository) http.HandlerFunc {
 			return
 		}
 
-		var date = time.Now()
+		var date = ntime.Now()
 
 		if err = ar.SetReaction(user.Id, rest.GetParam(request, "artworkId"), date, data); err != nil {
 			JSON.InternalServerError(writer, err)
@@ -105,7 +102,7 @@ func setReaction(ar ArtworkRepository) http.HandlerFunc {
 
 		JSON.Ok(writer, struct {
 			Reaction ReactionType
-			Date     time.Time
+			Date     ntime.NTime
 		}{
 			data.Reaction,
 			date,
@@ -122,7 +119,7 @@ func addComment(ar ArtworkRepository) http.HandlerFunc {
 			return
 		}
 
-		var artworkId = rest.GetParam(request, "id")
+		var artworkId = rest.GetParam(request, "artworkId")
 		id, date, err := ar.AddComment(auth.MustGetUser(request).Id, artworkId, data)
 
 		if err != nil {
@@ -130,9 +127,9 @@ func addComment(ar ArtworkRepository) http.HandlerFunc {
 			return
 		}
 
-		JSON.Ok(writer, struct {
+		JSON.Created(writer, struct {
 			Id   string
-			Date time.Time
+			Date ntime.NTime
 		}{
 			Id:   id,
 			Date: date,

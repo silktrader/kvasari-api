@@ -1,7 +1,6 @@
 package users
 
 import (
-	"github.com/julienschmidt/httprouter"
 	"github.com/silktrader/kvasari/pkg/auth"
 	JSON "github.com/silktrader/kvasari/pkg/json-utilities"
 	"github.com/silktrader/kvasari/pkg/rest"
@@ -14,7 +13,7 @@ func RegisterHandlers(engine rest.Engine, ur UserRepository, ar auth.Repository)
 
 	engine.Post("/sessions", login(ur))
 	engine.Get("/users", getUsers(ur))
-	engine.Post("/users", addUser(ur))
+	engine.Post("/users", registerUser(ur))
 
 	// followers
 	engine.Get("/users/:alias/followers", getFollowers(ur))
@@ -46,8 +45,8 @@ func getUsers(ur UserRepository) http.HandlerFunc {
 	}
 }
 
-// addUser handles the POST "/users" route
-func addUser(ur UserRepository) http.HandlerFunc {
+// registerUser handles the POST "/users" route
+func registerUser(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
 		// parse and validate the user data
@@ -69,6 +68,7 @@ func addUser(ur UserRepository) http.HandlerFunc {
 	}
 }
 
+// updateName handles the PUT "/users/:alias/name" route, allowing users to change their full name
 func updateName(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
@@ -79,10 +79,10 @@ func updateName(ur UserRepository) http.HandlerFunc {
 			return
 		}
 
-		// authorise or fail
+		// can't change others names
 		var user = auth.MustGetUser(request)
-		if user.Alias != httprouter.ParamsFromContext(request.Context()).ByName("alias") {
-			JSON.Unauthorised(writer)
+		if user.Alias != rest.GetParam(request, "alias") {
+			JSON.Forbidden(writer)
 			return
 		}
 
@@ -95,6 +95,7 @@ func updateName(ur UserRepository) http.HandlerFunc {
 	}
 }
 
+// updateAlias handles the PUT "/users/:alias/alias" route, allowing users to change aliases provided they're unique
 func updateAlias(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
@@ -105,10 +106,10 @@ func updateAlias(ur UserRepository) http.HandlerFunc {
 			return
 		}
 
-		// authorise or fail
+		// check authorisation
 		var user = auth.MustGetUser(request)
 		if user.Alias != rest.GetParam(request, "alias") {
-			JSON.Unauthorised(writer)
+			JSON.Forbidden(writer)
 			return
 		}
 
@@ -124,6 +125,8 @@ func updateAlias(ur UserRepository) http.HandlerFunc {
 	}
 }
 
+// login performs a simplistic authentication attempt, returning the user ID and status on success.
+// No passwords are checked, only mere user existence.
 func login(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 

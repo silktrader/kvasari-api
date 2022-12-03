@@ -3,6 +3,7 @@ package artworks
 import (
 	"database/sql"
 	"errors"
+	"github.com/silktrader/kvasari/pkg/ntime"
 	"github.com/silktrader/kvasari/pkg/rest"
 	"github.com/silktrader/kvasari/pkg/users"
 	"time"
@@ -11,8 +12,8 @@ import (
 type ArtworkRepository interface {
 	AddArtwork(data AddArtworkData, userId string) (string, string, error)
 	DeleteArtwork(artworkId string, userId string) bool
-	SetReaction(userId string, artworkId string, date time.Time, feedback ReactionData) error
-	AddComment(userId string, artworkId string, data CommentData) (id string, date time.Time, err error)
+	SetReaction(userId string, artworkId string, date ntime.NTime, feedback ReactionData) error
+	AddComment(userId string, artworkId string, data CommentData) (id string, date ntime.NTime, err error)
 	DeleteComment(userId string, commentId string) error
 
 	GetProfileData(userId string) (ProfileData, error)
@@ -90,7 +91,7 @@ func (ar *artworkRepository) DeleteArtwork(artworkId string, userId string) bool
 	return true
 }
 
-func (ar *artworkRepository) SetReaction(userId string, artworkId string, date time.Time, data ReactionData) error {
+func (ar *artworkRepository) SetReaction(userId string, artworkId string, date ntime.NTime, data ReactionData) error {
 
 	if data.Reaction == None {
 		return ar.removeReaction(userId, artworkId)
@@ -98,7 +99,7 @@ func (ar *artworkRepository) SetReaction(userId string, artworkId string, date t
 	return ar.upsertReaction(userId, artworkId, date, data)
 }
 
-func (ar *artworkRepository) upsertReaction(userId string, artworkId string, date time.Time, data ReactionData) error {
+func (ar *artworkRepository) upsertReaction(userId string, artworkId string, date ntime.NTime, data ReactionData) error {
 	_, err := ar.Connection.Exec(`
 		INSERT INTO artwork_feedback(artwork, user, reaction, date)
 		VALUES (?, ?, ?, ?)
@@ -116,10 +117,10 @@ func (ar *artworkRepository) removeReaction(userId string, artworkId string) err
 	return err
 }
 
-func (ar *artworkRepository) AddComment(userId string, artworkId string, data CommentData) (id string, date time.Time, err error) {
+func (ar *artworkRepository) AddComment(userId string, artworkId string, data CommentData) (id string, date ntime.NTime, err error) {
 
 	id = rest.MustGetNewUUID()
-	date = time.Now()
+	date = ntime.Now()
 
 	_, err = ar.Connection.Exec(`
 		INSERT INTO artwork_comments (id, artwork, user, comment, date) VALUES (?, ?, ?, ?, ?)`,
