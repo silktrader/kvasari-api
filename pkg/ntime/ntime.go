@@ -3,6 +3,7 @@ package ntime
 import (
 	"database/sql/driver"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -13,9 +14,9 @@ type NTime struct {
 	isValid bool // false when Time is null, possibly redundant
 }
 
-// UnmarshalJSON parses a RFC3339 time string into a time.Time object
+// UnmarshalJSON parses a RFC3339 time string into an NTime object
 func (nt *NTime) UnmarshalJSON(b []byte) error {
-	parsedTime, err := time.Parse(time.RFC3339, string(b))
+	parsedTime, err := time.Parse(time.RFC3339, strings.Trim(string(b), "\""))
 	if err != nil {
 		return err
 	}

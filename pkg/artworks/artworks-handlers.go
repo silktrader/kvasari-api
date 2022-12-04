@@ -39,19 +39,18 @@ func addArtwork(ar ArtworkRepository) http.HandlerFunc {
 		}
 
 		// ensure that the author's ID matches the authenticated user's one
-		var user = auth.MustGetUser(request)
-		if user.Id != data.AuthorId {
+		if auth.MustGetUser(request).Id != data.AuthorId {
 			JSON.Forbidden(writer)
 			return
 		}
 
 		// return a JSON with the artwork's ID and time of creation
-		id, updated, err := ar.AddArtwork(data, user.Id)
+		id, updated, err := ar.AddArtwork(data)
 		switch err {
 		case nil:
 			JSON.Created(writer, struct {
 				Id      string
-				Updated string
+				Updated ntime.NTime
 			}{
 				Id:      id,
 				Updated: updated,

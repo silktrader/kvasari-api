@@ -1,9 +1,9 @@
 package artworks
 
 import (
-	"database/sql"
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/go-ozzo/ozzo-validation/v4/is"
+	"github.com/silktrader/kvasari/pkg/ntime"
 	"github.com/silktrader/kvasari/pkg/users"
 	"net/url"
 	"time"
@@ -23,17 +23,17 @@ const (
 var artworkTypes = []interface{}{Painting, Drawing, Sculpture, Architecture, Photograph}
 
 type Artwork struct {
-	ID          string
+	Id          string
+	AuthorId    string
 	Title       string
 	Description string
 	PictureURL  string
-	AuthorID    string
 	Location    string
 	Year        int
 	Type        ArtworkType
-	Created     time.Time
-	Added       time.Time
-	Updated     time.Time
+	Created     ntime.NTime
+	Added       ntime.NTime
+	Updated     ntime.NTime
 }
 
 type AddArtworkData struct {
@@ -44,7 +44,7 @@ type AddArtworkData struct {
 	Location    string
 	Year        int
 	Type        ArtworkType
-	Created     sql.NullTime
+	Created     ntime.NTime
 }
 
 func (data AddArtworkData) Validate() error {
@@ -104,7 +104,7 @@ type ArtworkProfilePreview struct {
 	ID         string
 	Title      string
 	PictureURL string // ideally, a server generated preview
-	Added      time.Time
+	Added      ntime.NTime
 }
 
 // I wasted one hour of my life attempting to find out why my custom format wouldn't work
