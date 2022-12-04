@@ -1,0 +1,1059 @@
+openapi: 3.0.0
+info:
+  title: Kvasari
+  version: 1.0.0
+  description: "Kvasari meets the needs of narcissistic users, craving to showcase their visual artworks, while receiving feedback in the form of immediate reactions or more articulate textual comments."
+  contact:
+    name: Carlo Giuseppe Tomazzoli
+    email: tomazzoli.1951193@studenti.uniroma1.it
+    url: "https://github.com/silktrader"
+  license:
+    name: GPLv3
+    url: "https://spdx.org/licenses/GPL-3.0-or-later.html"
+servers:
+  - url: "http://localhost:3000"
+    description: Development
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  responses:
+    TimestampedMessage:
+      description: "Successful or unsuccessful request, with description message and timestamp."
+      content:
+        application/json:
+          schema:
+            type: object
+            x-examples:
+              Example 1:
+                Message: Possibly helpful message
+                Timestamp: "2022-12-02T17:03:51Z"
+            properties:
+              Message:
+                type: string
+                description: "An ideally helpful message describing bad requests, not found resources, etc."
+              Timestamp:
+                $ref: "#/components/schemas/Timestamp"
+            required:
+              - Message
+              - Timestamp
+          examples:
+            Example 1:
+              value:
+                Message: A message describing what went wrong with the operation and how to avoid further issues.
+                Timestamp: "2022-12-02T17:03:51Z"
+    TimestampedError:
+      description: Hopefully handled internal server error.
+      content:
+        application/json:
+          schema:
+            type: object
+            x-examples:
+              Example 1:
+                Error: Something horrible occurred
+                Timestamp: "2022-12-02T17:34:33Z"
+            properties:
+              Error:
+                type: string
+                description: Helpful error message void of debug information
+              Timestamp:
+                $ref: "#/components/schemas/Timestamp"
+  parameters:
+    UserAlias:
+      name: alias
+      in: path
+      required: true
+      schema:
+        type: string
+        example: gklimt
+        minLength: 5
+        maxLength: 16
+      description: User alias that uniquely identifies them
+    Target:
+      name: target
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 5
+        maxLength: 16
+      description: User alias that uniquely identifies them
+    ArtworkID:
+      name: artworkId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+        minLength: 36
+        maxLength: 36
+        example: 497f6eca-6276-4993-bfeb-53cbbbba6f08
+      description: Randomly generated unique identifier of an artwork
+  schemas:
+    UserAlias:
+      title: UserAlias
+      type: string
+      example: gklimt
+      minLength: 5
+      maxLength: 16
+      description: A unique user alias
+    UUID:
+      title: UUID
+      type: string
+      format: uuid
+      minLength: 36
+      maxLength: 36
+      description: "Randomly generated (almost) universally unique identifier, i.e. UUIDv4"
+      example: 497f6eca-6276-4993-bfeb-53cbbbba6f08
+    Timestamp:
+      title: Timestamp
+      type: string
+      description: RFC3339 encoded UTC time
+      format: date-time
+      example: "2019-08-24T14:15:22Z"
+    Email:
+      title: Email
+      type: string
+      format: email
+      description: A unique email address associated to each user.
+    Reaction:
+      title: Reaction
+      type: string
+      enum:
+        - Like
+        - Perplexed
+      description: A user reaction to an artwork.
+    ArtworkType:
+      title: ArtworkType
+      type: string
+      description: The artwork's visual medium.
+      enum:
+        - Painting
+        - Drawing
+        - Sculpture
+        - Photograph
+        - Architecture
+    PictureURL:
+      title: PictureURL
+      type: string
+      pattern: '(http)?s?:?(\/\/[^"'']*\.(?:png|jpg|jpeg|png))'
+      minLength: 0
+      maxLength: 160
+      format: uri
+      x-examples:
+        Example 1: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Gustav_Klimt_010.jpg/1024px-Gustav_Klimt_010.jpg"
+security:
+  - bearerAuth: []
+tags:
+  - name: Artworks
+    description: "Endpoints allowing artworks to be added, removed, edited or simply viewed."
+  - name: Feedback
+    description: Endpoints permitting and facilitating users interactions, such as leaving reactions or comments.
+  - name: User Management
+    description: Endpoints related to users administration.
+  - name: User Relationships
+    description: "Endpoints regulating users bans and followers, their addition and removal."
+paths:
+  /sessions:
+    post:
+      summary: Login
+      description: |-
+        Performs a simplistic authentication attempt, returning the user ID and status on success. Passwords aren't checked; only mere user existence is verified.
+
+        Ideally the response would contain access and refresh JWT tokens, with adequate claims.
+
+        The endpoint doesn't create new users, but mandates that action to another route.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              x-examples:
+                Example 1:
+                  Alias: eschiele
+                  Password: whateverlongpassword
+              properties:
+                Alias:
+                  $ref: "#/components/schemas/UserAlias"
+                Password:
+                  type: string
+              required:
+                - Alias
+                - Password
+            examples:
+              Example 1:
+                value:
+                  Alias: eschiele
+                  Password: notusedbutstored
+      responses:
+        "200":
+          description: Successful authentification
+          content:
+            application/json:
+              schema:
+                type: object
+                x-examples:
+                  Example 1:
+                    Id: c09cb1fd-495f-4f63-84dc-87c15a2f7740
+                    Status: authenticated
+                properties:
+                  Id:
+                    $ref: "#/components/schemas/UUID"
+                  Status:
+                    type: string
+              examples:
+                Example 1:
+                  value:
+                    Id: c09cb1fd-495f-4f63-84dc-87c15a2f7740
+                    Status: authenticated
+        "400":
+          $ref: "#/components/responses/TimestampedMessage"
+      operationId: doLogin
+      tags:
+        - User Management
+  /users:
+    post:
+      tags:
+        - User Management
+      summary: Register User
+      description: "Register a new user given their unique alias and email. Set the initial full name and a token, unused, password."
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              x-examples:
+                Example 1:
+                  Name: John Everett Millais
+                  Alias: millais
+                  Email: jem@gmail.com
+                  Password: placeholder
+              properties:
+                Name:
+                  type: string
+                Alias:
+                  $ref: "#/components/schemas/UserAlias"
+                Email:
+                  type: string
+                  format: email
+                Password:
+                  type: string
+                  format: password
+            examples:
+              Example 1:
+                value:
+                  Name: John Everett Millais
+                  Alias: millais
+                  Email: jem@gmail.com
+                  Password: pa$$word
+      responses:
+        "200":
+          description: User Registered
+          content:
+            application/json:
+              schema:
+                type: object
+                x-examples:
+                  Example 1:
+                    Id: fac2f1d8-3bef-440b-9226-c2149f55e1c0
+                    Alias: jemillais
+                    Name: John Everett Millais
+                    Email: jemk@gmail.com
+                    Created: "2022-12-02T17:28:43Z"
+                    Updated: "2022-12-02T17:28:43Z"
+                properties:
+                  Id:
+                    $ref: "#/components/schemas/UUID"
+                  Alias:
+                    $ref: "#/components/schemas/UserAlias"
+                  Name:
+                    type: string
+                  Email:
+                    type: string
+                    format: email
+                    description: User provided email guaranteed to be unique
+                  Created:
+                    type: string
+                    format: date-time
+                    description: RFC3339 UTC timestamp
+                  Updated:
+                    type: string
+                    format: date-time
+                    description: RFC3339 UTC timestamp
+              examples:
+                Example 1:
+                  value:
+                    Id: fac2f1d8-3bef-440b-9226-c2149f55e1c0
+                    Alias: jemillais
+                    Name: John Everett Millais
+                    Email: jem@gmail.com
+                    Created: "2022-12-02T17:28:43Z"
+                    Updated: "2022-12-02T17:28:43Z"
+        "400":
+          $ref: "#/components/responses/TimestampedMessage"
+        "500":
+          $ref: "#/components/responses/TimestampedError"
+      operationId: registerUser
+  "/users/{alias}/name":
+    put:
+      tags:
+        - User Management
+      summary: Edit User Name
+      description: Change the specified user's full name to a new value.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              x-examples:
+                Example 1:
+                  Name: Egon Schiele
+              properties:
+                Name:
+                  type: string
+                  description: The user's new name
+              required:
+                - Name
+      responses:
+        "204":
+          description: No Content
+        "400":
+          $ref: "#/components/responses/TimestampedMessage"
+        "403":
+          description: Forbidden
+        "500":
+          $ref: "#/components/responses/TimestampedError"
+      operationId: setMyUserName
+    parameters:
+      - $ref: "#/components/parameters/UserAlias"
+  "/users/{alias}/alias":
+    put:
+      summary: Edit User Alias
+      description: Change the specified user's alias to a new unique value.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              x-examples:
+                Example 1:
+                  Alias: eschiele
+              properties:
+                Alias:
+                  type: string
+                  description: A new unique alias for the user
+              required:
+                - Alias
+        description: ""
+      responses:
+        "204":
+          description: No Content
+        "400":
+          $ref: "#/components/responses/TimestampedMessage"
+        "403":
+          description: Forbidden
+        "500":
+          $ref: "#/components/responses/TimestampedError"
+      operationId: editAlias
+      tags:
+        - User Management
+    parameters:
+      - $ref: "#/components/parameters/UserAlias"
+  "/users/{alias}/bans":
+    get:
+      summary: Get Bans
+      description: "Fetch the users banned by the selected alias, provided authorised credentials."
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                x-examples:
+                  Example 1:
+                    - Id: 38dc5047-db66-46b4-81a7-f77bd84d0516
+                      Alias: waterhouse
+                      Name: John William Waterhouse
+                      Banned: "2022-12-02T19:13:57Z"
+                minItems: 0
+                maxItems: 100
+                uniqueItems: true
+                items:
+                  type: object
+                  properties:
+                    Id:
+                      $ref: "#/components/schemas/UUID"
+                    Alias:
+                      $ref: "#/components/schemas/UserAlias"
+                    Name:
+                      type: string
+                    Banned:
+                      $ref: "#/components/schemas/Timestamp"
+                  required:
+                    - Id
+                    - Alias
+                    - Name
+                    - Banned
+              examples:
+                Example 1:
+                  value:
+                    - Id: 38dc5047-db66-46b4-81a7-f77bd84d0516
+                      Alias: waterhouse
+                      Name: John William Waterhouse
+                      Banned: "2022-12-02T19:13:57Z"
+        "403":
+          description: Forbidden
+        "500":
+          $ref: "#/components/responses/TimestampedError"
+      operationId: getBans
+      tags:
+        - User Relationships
+    post:
+      summary: Ban User
+      description: "Allows the authorised user to ban a target, by specifying their unique alias."
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              x-examples:
+                Example 1:
+                  TargetAlias: waterhouse
+              properties:
+                TargetAlias:
+                  $ref: "#/components/schemas/UserAlias"
+            examples:
+              Example 1:
+                value:
+                  TargetAlias: waterhouse
+      responses:
+        "204":
+          description: Successful response
+          content:
+            application/json: {}
+        "400":
+          $ref: "#/components/responses/TimestampedMessage"
+        "403":
+          description: Forbidden
+        "500":
+          $ref: "#/components/responses/TimestampedError"
+      operationId: banUser
+      tags:
+        - User Relationships
+    parameters:
+      - $ref: "#/components/parameters/UserAlias"
+  "/users/{alias}/bans/{target}":
+    delete:
+      summary: Unban User
+      description: "Removes the authorised user's ban on the target, restoring the latter's ability to view artworks and follow the source."
+      responses:
+        "204":
+          description: No Content
+        "400":
+          $ref: "#/components/responses/TimestampedMessage"
+        "403":
+          $ref: "#/components/responses/TimestampedMessage"
+        "500":
+          $ref: "#/components/responses/TimestampedError"
+      operationId: unbanUser
+      tags:
+        - User Relationships
+    parameters:
+      - $ref: "#/components/parameters/UserAlias"
+      - $ref: "#/components/parameters/Target"
+  "/users/{alias}/followers":
+    get:
+      summary: Get Followers
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                x-examples:
+                  Example 1:
+                    - ID: 637c8e48-6e0b-4b6c-acc4-a0ff293dcac2
+                      Alias: gklimt
+                      Name: Gustav Klimt
+                      Email: klimt@gmail.com
+                      Followed: "2022-11-27T19:55:34Z"
+                items:
+                  type: object
+                  properties:
+                    ID:
+                      $ref: "#/components/schemas/UUID"
+                    Alias:
+                      $ref: "#/components/schemas/UserAlias"
+                    Name:
+                      type: string
+                    Email:
+                      $ref: "#/components/schemas/Email"
+                    Followed:
+                      $ref: "#/components/schemas/Timestamp"
+              examples:
+                Example 1:
+                  value:
+                    - ID: 637c8e48-6e0b-4b6c-acc4-a0ff293dcac2
+                      Alias: gklimt
+                      Name: Gustav Klimt
+                      Email: klimt@gmail.com
+                      Followed: "2022-11-27T19:55:34Z"
+        "400":
+          $ref: "#/components/responses/TimestampedMessage"
+        "500":
+          $ref: "#/components/responses/TimestampedError"
+      operationId: getFollowers
+      description: |-
+        Fetches all the users who follow the specified alias.
+        No authorisation is required, temporarily, for development's purposes.
+      deprecated: true
+      tags:
+        - User Relationships
+    parameters:
+      - $ref: "#/components/parameters/UserAlias"
+  "/users/{alias}/followed":
+    post:
+      summary: Follow User
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              x-examples:
+                Example 1:
+                  targetAlias: egonschiele
+              properties:
+                targetAlias:
+                  $ref: "#/components/schemas/UserAlias"
+              required:
+                - targetAlias
+        description: The unique alias matching the target user to follow.
+      responses:
+        "204":
+          description: Successful response
+          content:
+            application/json: {}
+        "400":
+          $ref: "#/components/responses/TimestampedMessage"
+        "403":
+          description: Forbidden
+        "500":
+          $ref: "#/components/responses/TimestampedError"
+      operationId: followUser
+      description: "Allows a user to follow another one, thereby receiving news of their posted artwork."
+      tags:
+        - User Relationships
+    parameters:
+      - $ref: "#/components/parameters/UserAlias"
+  "/users/{alias}/followed/{target}":
+    delete:
+      summary: Unfollow User
+      responses:
+        "204":
+          description: Successful response
+          content:
+            application/json: {}
+        "400":
+          $ref: "#/components/responses/TimestampedMessage"
+        "403":
+          description: Forbidden
+        "500":
+          $ref: "#/components/responses/TimestampedError"
+      operationId: unfollowUser
+      description: Removes the target user from the ones followed by the requesting user.
+      tags:
+        - User Relationships
+    parameters:
+      - $ref: "#/components/parameters/UserAlias"
+      - $ref: "#/components/parameters/Target"
+  "/artworks/{artworkId}/comments":
+    post:
+      summary: Add Artwork Comment
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                Comment:
+                  type: string
+                  minLength: 10
+                  maxLength: 3000
+                  description: "A possibly constructive comment, limited to 3000 characters, but no shorter than 10"
+              required:
+                - Comment
+            examples:
+              Example 1:
+                value:
+                  Comment: One of his most memorable works.
+        description: "A textual commment, unformatted, limited to 3000 characters"
+      responses:
+        "201":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                x-examples:
+                  Example 1:
+                    Id: 4b6cc7c6-cad5-4585-9aca-8cf425319345
+                    Date: "2022-12-04T09:53:56Z"
+                description: "ID and timestamp of the posted comment, for display and future deletion or editing."
+                properties:
+                  Id:
+                    $ref: "#/components/schemas/UUID"
+                  Date:
+                    $ref: "#/components/schemas/Timestamp"
+        "400":
+          $ref: "#/components/responses/TimestampedMessage"
+        "500":
+          $ref: "#/components/responses/TimestampedError"
+      tags:
+        - Feedback
+      operationId: commentPhoto
+      description: Allows users to leave a comment on theirs or another user's artwork.
+    parameters:
+      - name: artworkId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+        description: The randomly generated unique identifier of an artwork
+  "/artworks/{artworkId}/comments/{commentId}":
+    delete:
+      summary: Delete Artwork Comment
+      responses:
+        "204":
+          description: Successful response
+          content:
+            application/json: {}
+        "404":
+          $ref: "#/components/responses/TimestampedMessage"
+        "500":
+          $ref: "#/components/responses/TimestampedError"
+      tags:
+        - Feedback
+      operationId: uncommentPhoto
+      description: Removes a previously recorded comment.
+    parameters:
+      - $ref: "#/components/parameters/ArtworkID"
+      - schema:
+          type: string
+        name: commentId
+        in: path
+        required: true
+        description: The randomly generated unique identifier of a user comment
+        example: "0e0dcd46-ef66-4b88-8b53-969385df4bce"
+  "/artworks/{artworkId}/reactions/{alias}":
+    put:
+      summary: Set Artwork Reaction
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              x-examples:
+                Example 1:
+                  Reaction: Like
+              additionalProperties: false
+              properties:
+                Reaction:
+                  $ref: "#/components/schemas/Reaction"
+        description: ""
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  Reaction:
+                    $ref: "#/components/schemas/Reaction"
+                  Date:
+                    $ref: "#/components/schemas/Timestamp"
+        "400":
+          $ref: "#/components/responses/TimestampedMessage"
+        "403":
+          description: Forbidden
+        "500":
+          $ref: "#/components/responses/TimestampedError"
+      tags:
+        - Artworks
+        - Feedback
+      operationId: likePhoto
+      description: |
+        Allows users to react to another user's artwork, by selecting from a limited range of mutually exclusive options, such as "like", or "perplexed".
+    parameters:
+      - $ref: "#/components/parameters/ArtworkID"
+      - $ref: "#/components/parameters/UserAlias"
+    delete:
+      summary: "Remove a reaction"
+      operationId: unlikePhoto
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+        "500":
+          $ref: "#/components/responses/TimestampedError"
+      description: Remove a previously expressed reaction.
+      tags:
+        - Artworks
+        - Feedback
+  /artworks:
+    post:
+      summary: Add Artwork
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              x-examples:
+                Example 1:
+                  Title: Danaë
+                  Description: "Danaë was a popular subject in the early 1900s for many artists; she was used as the quintessential symbol of divine love, and transcendence."
+                  PictureUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Gustav_Klimt_010.jpg/1024px-Gustav_Klimt_010.jpg"
+                  Location: "Galerie Würthle, Vienna"
+                  Year: 1907
+                  Type: Painting
+              properties:
+                AuthorId:
+                  $ref: "#/components/schemas/UUID"
+                Title:
+                  type: string
+                  maxLength: 250
+                Description:
+                  type: string
+                  maxLength: 3000
+                PictureUrl:
+                  $ref: "#/components/schemas/PictureURL"
+                Location:
+                  type: string
+                  maxLength: 120
+                Year:
+                  type: integer
+                  minimum: -10000
+                  maximum: 10000
+                  description: "Refers to the year of creation, displayed when a creation timestamp is absent."
+                Type:
+                  $ref: "#/components/schemas/ArtworkType"
+                Created:
+                  $ref: "#/components/schemas/Timestamp"
+              required:
+                - AuthorId
+                - PictureUrl
+                - Type
+            examples:
+              Example 1:
+                value:
+                  Title: Danaë
+                  Description: "Danaë was a popular subject in the early 1900s for many artists; she was used as the quintessential symbol of divine love, and transcendence."
+                  PictureUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Gustav_Klimt_010.jpg/1024px-Gustav_Klimt_010.jpg"
+                  Location: "Galerie Würthle, Vienna"
+                  Year: 1907
+                  Type: Painting
+                  AuthorId: f295c60a-60bf-495e-be9f-32882dac63ca
+        description: Artwork's picture and metadata.
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                x-examples:
+                  Example 1:
+                    Id: f295c60a-60bf-495e-be9f-32882dac63ca
+                    Updated: "2022-12-02T22:49:54Z"
+                properties:
+                  Id:
+                    $ref: "#/components/schemas/UUID"
+                  Updated:
+                    $ref: "#/components/schemas/Timestamp"
+              examples:
+                Example 1:
+                  value:
+                    Id: f295c60a-60bf-495e-be9f-32882dac63ca
+                    Updated: "2022-12-02T22:49:54Z"
+        "400":
+          $ref: "#/components/responses/TimestampedMessage"
+        "403":
+          description: Forbidden
+        "500":
+          $ref: "#/components/responses/TimestampedError"
+      tags:
+        - Artworks
+      operationId: uploadPhoto
+      description: "Allows authenticated users to post their artwork and related metadata, such as titles, descriptions, location tags, etc."
+    parameters: []
+  "/artworks/{artworkId}":
+    delete:
+      tags:
+        - Artworks
+      summary: Delete Artwork
+      responses:
+        "204":
+          description: Successful response
+          content:
+            application/json: {}
+        "400":
+          $ref: "#/components/responses/TimestampedMessage"
+      operationId: deletePhoto
+      description: "Removes a previously posted artwork, ensuring the acting user has appropriate rights."
+    parameters:
+      - $ref: "#/components/parameters/ArtworkID"
+  "/users/{alias}/profile":
+    get:
+      tags:
+        - Artworks
+        - User Relationships
+      summary: Get User Profile
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                x-examples:
+                  Example 1:
+                    Artworks:
+                      - ID: 6c145ddb-3152-488e-9724-5aeefd9d8862
+                        Title: Death and the Maiden
+                        PictureURL: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/27/Egon_Schiele_012.jpg/1280px-Egon_Schiele_012.jpg"
+                        Added: "2022-12-01T22:54:12Z"
+                    Followers:
+                      - Id: 637c8e48-6e0b-4b6c-acc4-a0ff293dcac2
+                        Alias: gklimt
+                        Name: Gustav Klimt
+                        Date: "2022-11-27T19:55:34Z"
+                    Followed:
+                      - Id: 637c8e48-6e0b-4b6c-acc4-a0ff293dcac2
+                        Alias: gklimt
+                        Name: Gustav Klimt
+                        Date: "2022-11-27T19:39:51Z"
+                properties:
+                  TotalArtworks:
+                    type: integer
+                    minimum: 0
+                    description: The total number of artworks uploaded by the user
+                  Artworks:
+                    type: array
+                    minItems: 0
+                    maxItems: 12
+                    description: The latest uploaded artworks
+                    items:
+                      type: object
+                      additionalProperties: false
+                      properties:
+                        ID:
+                          $ref: "#/components/schemas/UUID"
+                        Title:
+                          type: string
+                        PictureURL:
+                          $ref: "#/components/schemas/PictureURL"
+                        Added:
+                          $ref: "#/components/schemas/Timestamp"
+                  Followers:
+                    type: array
+                    minItems: 0
+                    items:
+                      type: object
+                      additionalProperties: false
+                      properties:
+                        Id:
+                          $ref: "#/components/schemas/UUID"
+                        Alias:
+                          $ref: "#/components/schemas/UserAlias"
+                        Name:
+                          type: string
+                        Date:
+                          $ref: "#/components/schemas/Timestamp"
+                  Followed:
+                    type: array
+                    minItems: 0
+                    items:
+                      type: object
+                      additionalProperties: false
+                      properties:
+                        Id:
+                          $ref: "#/components/schemas/UUID"
+                        Alias:
+                          $ref: "#/components/schemas/UserAlias"
+                        Name:
+                          type: string
+                        Date:
+                          $ref: "#/components/schemas/Timestamp"
+                required:
+                  - TotalArtworks
+                  - Artworks
+                  - Followers
+                  - Followed
+              examples:
+                Example 1:
+                  value:
+                    TotalArtworks: 3
+                    Artworks:
+                      - ID: 6fb46dc0-9f6e-4f21-8b82-513bc746e15e
+                        Title: Danaë 2
+                        PictureURL: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Gustav_Klimt_010.jpg/1024px-Gustav_Klimt_010.jpg"
+                        Added: "2022-12-04T12:08:31Z"
+                      - ID: 0e0dcd46-ef66-4b88-8b53-969385df4bce
+                        Title: Danaë 2
+                        PictureURL: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Gustav_Klimt_010.jpg/1024px-Gustav_Klimt_010.jpg"
+                        Added: "2022-12-04T11:03:37Z"
+                      - ID: 6c145ddb-3152-488e-9724-5aeefd9d8862
+                        Title: Death and the Maiden
+                        PictureURL: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/27/Egon_Schiele_012.jpg/1280px-Egon_Schiele_012.jpg"
+                        Added: "2022-12-01T22:54:12Z"
+                    Followers:
+                      - Id: 637c8e48-6e0b-4b6c-acc4-a0ff293dcac2
+                        Alias: gklimt
+                        Name: Gustav Klimt
+                        Date: "2022-11-27T19:55:34Z"
+                    Followed:
+                      - Id: 637c8e48-6e0b-4b6c-acc4-a0ff293dcac2
+                        Alias: gklimt
+                        Name: Gustav Klimt
+                        Date: "2022-11-27T19:39:51Z"
+        "403":
+          description: Forbidden
+        "500":
+          $ref: "#/components/responses/TimestampedError"
+      operationId: getUserProfile
+      description: |-
+        Provides authenticated users with a snapshot of their own activities; including their latest artworks, as well as the total number of uploads.
+        Details about followed users and followers are also included.
+    parameters:
+      - $ref: "#/components/parameters/UserAlias"
+  "/users/{alias}/stream":
+    get:
+      tags:
+        - Artworks
+      summary: Get User Stream
+      parameters:
+        - name: since
+          in: query
+          schema:
+            type: string
+            format: date-time
+            example: "2022-12-02T02:46:05Z"
+            pattern: '^[1-9]\d{3}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$'
+          example: "2022-12-02T02:46:05Z"
+          required: true
+          description: The date and time of the earliest update fetched
+        - name: latest
+          in: query
+          schema:
+            type: string
+            format: date-time
+            example: "2022-12-02T02:46:05Z"
+            pattern: '^[1-9]\d{3}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$'
+          example: "2022-12-02T15:04:05Z"
+          required: true
+          description: The date and time of the latest update received
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              examples:
+                Example 1:
+                  value:
+                    Artworks:
+                      - ID: 44de4ffa-ccdd-478f-94c2-8faad6e46aaf
+                        Title: Danaë
+                        PictureURL: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Gustav_Klimt_010.jpg/1024px-Gustav_Klimt_010.jpg"
+                        Added: "2022-12-01T23:22:04Z"
+                      - ID: ab84e3a6-3a60-40d3-a039-20ecf06cc936
+                        Title: The Kiss
+                        PictureURL: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Klimt_-_Der_Kuss.jpeg/607px-Klimt_-_Der_Kuss.jpeg?20101126060930"
+                        Added: "2022-11-28T11:43:18Z"
+                      - ID: 7910e00e-5de6-4bd8-ae8e-5d05d2e289e7
+                        Title: Giuditta ed Oloferne
+                        PictureURL: www.sample.org
+                        Added: "2022-11-28T11:35:41Z"
+                    NewArtworks: []
+                    DeletedIds: []
+              schema:
+                type: object
+                x-examples:
+                  Example 1:
+                    Artworks:
+                      - ID: 44de4ffa-ccdd-478f-94c2-8faad6e46aaf
+                        Title: Danaë
+                        PictureURL: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Gustav_Klimt_010.jpg/1024px-Gustav_Klimt_010.jpg"
+                        Added: "2022-12-01T23:22:04Z"
+                      - ID: ab84e3a6-3a60-40d3-a039-20ecf06cc936
+                        Title: The Kiss
+                        PictureURL: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Klimt_-_Der_Kuss.jpeg/607px-Klimt_-_Der_Kuss.jpeg?20101126060930"
+                        Added: "2022-11-28T11:43:18Z"
+                      - ID: 7910e00e-5de6-4bd8-ae8e-5d05d2e289e7
+                        Title: Giuditta ed Oloferne
+                        PictureURL: www.sample.org
+                        Added: "2022-11-28T11:35:41Z"
+                    NewArtworks: []
+                    DeletedIds: []
+                properties:
+                  Artworks:
+                    type: array
+                    maxItems: 12
+                    minItems: 0
+                    items:
+                      type: object
+                      additionalProperties: false
+                      properties:
+                        ID:
+                          $ref: "#/components/schemas/UUID"
+                        Title:
+                          type: string
+                        PictureURL:
+                          $ref: "#/components/schemas/PictureURL"
+                        Added:
+                          $ref: "#/components/schemas/Timestamp"
+                  NewArtworks:
+                    type: array
+                    minItems: 0
+                    items:
+                      type: object
+                      additionalProperties: false
+                      properties:
+                        ID:
+                          $ref: "#/components/schemas/UUID"
+                        Title:
+                          type: string
+                        PictureURL:
+                          $ref: "#/components/schemas/PictureURL"
+                        Added:
+                          $ref: "#/components/schemas/Timestamp"
+                  DeletedIds:
+                    type: array
+                    minItems: 0
+                    items:
+                      $ref: "#/components/schemas/UUID"
+                required:
+                  - Artworks
+                  - NewArtworks
+                  - DeletedIds
+        "400":
+          $ref: "#/components/responses/TimestampedMessage"
+        "403":
+          description: Forbidden
+        "500":
+          $ref: "#/components/responses/TimestampedError"
+      operationId: getMyStream
+      description: |-
+        Summarises all the user's recent activity: artworks are fetched, in reverse chronological order, by the dozen.
+        With the purpose of building a continuous stream, users are expected to make multiple requests to this endpoint, with changing timestamps, to obtain an ever expanding view of previously uploaded artworks.
+        The "since" timestamp signals the earliest time point reached, whence the next dozen artworks, in reverse chronological order, will be provided.
+        The "latest" timestamp indicates the current user time, which allows the server to communicate artworks uploaded after that moment, as well as deleted artworks' IDs, which may have been included in previous responses.
+    parameters:
+      - $ref: "#/components/parameters/UserAlias"
