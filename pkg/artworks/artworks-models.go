@@ -62,12 +62,11 @@ func (data AddArtworkData) Validate() error {
 type ReactionType string
 
 const (
-	None      ReactionType = "None"
 	Like      ReactionType = "Like"
 	Perplexed ReactionType = "Perplexed"
 )
 
-var reactions = []interface{}{None, Like, Perplexed}
+var reactions = []interface{}{Like, Perplexed}
 
 type ReactionData struct {
 	Reaction ReactionType

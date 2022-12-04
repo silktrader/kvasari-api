@@ -4,11 +4,11 @@ import (
 	"github.com/silktrader/kvasari/pkg/auth"
 	JSON "github.com/silktrader/kvasari/pkg/json-utilities"
 	"github.com/silktrader/kvasari/pkg/ntime"
-	"github.com/silktrader/kvasari/pkg/rest"
+	. "github.com/silktrader/kvasari/pkg/rest"
 	"net/http"
 )
 
-func RegisterHandlers(engine rest.Engine, ar ArtworkRepository, aur auth.Repository) {
+func RegisterHandlers(engine Engine, ar ArtworkRepository, aur auth.Repository) {
 
 	var authenticated = auth.Auth(aur)
 
@@ -66,10 +66,8 @@ func addArtwork(ar ArtworkRepository) http.HandlerFunc {
 func deleteArtwork(ar ArtworkRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
-		var artworkId = rest.GetParam(request, "artworkId")
-
 		// issues a bad request regardless of authorisation issues to deny information about existing resources
-		if deleted := ar.DeleteArtwork(artworkId, auth.MustGetUser(request).Id); deleted {
+		if deleted := ar.DeleteArtwork(GetParam(request, "artworkId"), auth.MustGetUser(request).Id); deleted {
 			JSON.NoContent(writer)
 		} else {
 			JSON.BadRequest(writer)
@@ -83,7 +81,7 @@ func setReaction(ar ArtworkRepository) http.HandlerFunc {
 
 		// the path user must match the authorised one
 		var user = auth.MustGetUser(request)
-		if user.Alias != rest.GetParam(request, "alias") {
+		if user.Alias != GetParam(request, "alias") {
 			JSON.Forbidden(writer)
 			return
 		}
@@ -96,7 +94,7 @@ func setReaction(ar ArtworkRepository) http.HandlerFunc {
 		}
 
 		var date = ntime.Now()
-		err = ar.SetReaction(user.Id, rest.GetParam(request, "artworkId"), date, data)
+		err = ar.SetReaction(user.Id, GetParam(request, "artworkId"), date, data)
 
 		// it's debatable whether 201 should be returned on first setting the reaction
 		switch err {
@@ -105,31 +103,26 @@ func setReaction(ar ArtworkRepository) http.HandlerFunc {
 				Status string
 				Date   ntime.NTime
 			}{"changed", date})
-			return
-
 		case ErrNotModified:
 			JSON.Ok(writer, struct{ Status string }{"unchanged"})
-			return
-
 		default:
 			JSON.InternalServerError(writer, err)
-			return
 		}
 	}
 }
 
-// removeReaction handles the DELETE "/artworks/:artworkId/reactions/:alias" path
+// removeReaction handles the DELETE "/artworks/:artworkId/reactions/:alias" route
 func removeReaction(ar ArtworkRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
 		// the alias must match the authorised one
 		var user = auth.MustGetUser(request)
-		if user.Alias != rest.GetParam(request, "alias") {
+		if user.Alias != GetParam(request, "alias") {
 			JSON.Forbidden(writer)
 			return
 		}
 
-		switch err := ar.RemoveReaction(user.Id, rest.GetParam(request, "artworkId")); err {
+		switch err := ar.RemoveReaction(user.Id, GetParam(request, "artworkId")); err {
 		case nil:
 			JSON.NoContent(writer)
 		case ErrNotFound:
@@ -140,6 +133,7 @@ func removeReaction(ar ArtworkRepository) http.HandlerFunc {
 	}
 }
 
+// addComment handles the POST "/artworks/:artworkId/comments route
 func addComment(ar ArtworkRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
@@ -149,7 +143,7 @@ func addComment(ar ArtworkRepository) http.HandlerFunc {
 			return
 		}
 
-		var artworkId = rest.GetParam(request, "artworkId")
+		var artworkId = GetParam(request, "artworkId")
 		id, date, err := ar.AddComment(auth.MustGetUser(request).Id, artworkId, data)
 
 		if err != nil {
@@ -167,10 +161,11 @@ func addComment(ar ArtworkRepository) http.HandlerFunc {
 	}
 }
 
+// deleteComment handles the authenticated DELETE "/artworks/:artworkId/comments/:commentId" route
 func deleteComment(ar ArtworkRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
-		switch err := ar.DeleteComment(auth.MustGetUser(request).Id, rest.GetParam(request, "commentId")); err {
+		switch err := ar.DeleteComment(auth.MustGetUser(request).Id, GetParam(request, "commentId")); err {
 		case nil:
 			JSON.NoContent(writer)
 		case ErrNotFound:
@@ -187,7 +182,7 @@ func getProfile(ar ArtworkRepository) http.HandlerFunc {
 
 		// check whether the user has legitimate access to the route
 		var user = auth.MustGetUser(request)
-		if user.Alias != rest.GetParam(request, "alias") {
+		if user.Alias != GetParam(request, "alias") {
 			JSON.Forbidden(writer)
 			return
 		}
@@ -208,7 +203,7 @@ func getStream(ar ArtworkRepository) http.HandlerFunc {
 
 		// check whether the user has legitimate access to the route
 		var user = auth.MustGetUser(request)
-		if user.Alias != rest.GetParam(request, "alias") {
+		if user.Alias != GetParam(request, "alias") {
 			JSON.Forbidden(writer)
 			return
 		}
