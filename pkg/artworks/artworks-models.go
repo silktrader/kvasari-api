@@ -95,9 +95,10 @@ func (data CommentData) Validate() error {
 // Profile Response DTOs
 
 type ProfileData struct {
-	Artworks  []ArtworkProfilePreview
-	Followers []users.RelationData
-	Followed  []users.RelationData
+	TotalArtworks int
+	Artworks      []ArtworkProfilePreview
+	Followers     []users.RelationData
+	Followed      []users.RelationData
 }
 
 type ArtworkProfilePreview struct {

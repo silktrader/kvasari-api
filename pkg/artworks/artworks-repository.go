@@ -17,7 +17,7 @@ type ArtworkRepository interface {
 	DeleteComment(userId string, commentId string) error
 
 	GetProfileData(userId string) (ProfileData, error)
-	GetUserArtworks(userId string, pageSize int, page int) ([]ArtworkProfilePreview, error)
+	GetUserArtworks(userId string, pageSize int, page int) ([]ArtworkProfilePreview, int, error)
 	GetStream(userId string, since string, latest string) (data StreamData, err error)
 }
 
@@ -176,35 +176,38 @@ func (ar *artworkRepository) GetProfileData(userId string) (ProfileData, error) 
 	}
 
 	// fetch the user's sorted artwork
-	artworks, err := ar.GetUserArtworks(userId, 20, 0)
+	artworks, total, err := ar.GetUserArtworks(userId, 20, 0)
 
 	// return actual data or last error
-	return ProfileData{artworks, followers, followed}, err
+	return ProfileData{total, artworks, followers, followed}, err
 }
 
-func (ar *artworkRepository) GetUserArtworks(userId string, pageSize int, page int) ([]ArtworkProfilePreview, error) {
+// GetUserArtworks returns a slice of paginated artworks uploaded by the user, along with the total number of uploads.
+// tk distinguish between the initial profile artworks and further requests, add pagination struct
+func (ar *artworkRepository) GetUserArtworks(userId string, pageSize int, page int) (artworks []ArtworkProfilePreview, tally int, err error) {
 
-	var artworks = make([]ArtworkProfilePreview, 0)
+	artworks = make([]ArtworkProfilePreview, 0, 12)
 	rows, err := ar.Connection.Query(`
-		SELECT id, title, picture_url, added FROM artworks WHERE author_id = ? ORDER BY added DESC LIMIT ? OFFSET ?`,
+		SELECT id, title, picture_url, added, count(id) over() as cnt FROM artworks
+		WHERE author_id = ? ORDER BY added DESC LIMIT ? OFFSET ?`,
 		userId, pageSize, page,
 	)
 
 	if err != nil {
-		return artworks, err
+		return artworks, tally, err
 	}
 
 	defer closeRows(rows)
 
 	for rows.Next() {
 		var artwork ArtworkProfilePreview
-		if err = rows.Scan(&artwork.ID, &artwork.Title, &artwork.PictureURL, &artwork.Added); err != nil {
-			return artworks, err
+		if err = rows.Scan(&artwork.ID, &artwork.Title, &artwork.PictureURL, &artwork.Added, &tally); err != nil {
+			return artworks, tally, err
 		}
 		artworks = append(artworks, artwork)
 	}
 
-	return artworks, rows.Err()
+	return artworks, tally, rows.Err()
 }
 
 type StreamData struct {
