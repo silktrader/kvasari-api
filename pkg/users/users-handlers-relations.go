@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/silktrader/kvasari/pkg/auth"
 	JSON "github.com/silktrader/kvasari/pkg/json-utilities"
+	"github.com/silktrader/kvasari/pkg/ntime"
 	"github.com/silktrader/kvasari/pkg/rest"
 	"net/http"
 )
@@ -57,18 +58,21 @@ func followUser(ur UserRepository) http.HandlerFunc {
 			return
 		}
 
+		var date = ntime.Now()
 		// attempt to follow the user and fail when:
 		// - the follower already follows the target (ErrDupFollower)
 		// - no user matches the target alias (ErrNotFound)
 		// - the target is banning the requester (a debatable ErrNotFound)
-		switch err = ur.Follow(follower.Id, data.TargetAlias); err {
+		switch err = ur.Follow(follower.Id, data.TargetAlias, date); err {
 		case nil:
-			JSON.NoContent(writer)
+			JSON.Created(writer, struct {
+				Alias    string
+				Followed ntime.NTime
+			}{data.TargetAlias, date})
 		case ErrDupFollower:
-			// tk add 304 response, Not Modified?
-			JSON.BadRequestWithMessage(writer, err.Error())
+			JSON.BadRequestWithMessage(writer, fmt.Sprintf("You are already following user %s", data.TargetAlias))
 		case ErrNotFound:
-			JSON.NotFound(writer, err.Error())
+			JSON.NotFound(writer, fmt.Sprintf("User %s not found", data.TargetAlias))
 		default:
 			JSON.InternalServerError(writer, err)
 		}
@@ -135,9 +139,13 @@ func banUser(ur UserRepository) http.HandlerFunc {
 		}
 
 		// attempt to ban, which will also result in targets following the source to stop doing so
-		switch err = ur.Ban(source.Id, data.TargetAlias); err {
+		var date = ntime.Now()
+		switch err = ur.Ban(source.Id, data.TargetAlias, date); err {
 		case nil:
-			JSON.NoContent(writer)
+			JSON.Created(writer, struct {
+				Alias  string
+				Banned ntime.NTime
+			}{data.TargetAlias, date})
 		case ErrDupBan:
 			JSON.BadRequestWithMessage(writer, fmt.Sprintf("User %s is already banned", data.TargetAlias))
 		default:

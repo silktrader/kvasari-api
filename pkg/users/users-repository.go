@@ -21,11 +21,11 @@ type UserRepository interface {
 	UpdateAlias(userId string, newAlias string) error
 
 	IsFollowing(followerId string, targetId string) bool
-	Follow(followerId string, targetAlias string) error
+	Follow(followerId string, targetAlias string, date ntime.NTime) error
 	Unfollow(followerId string, targetAlias string) error
 	GetFollowers(userAlias string) ([]Follower, error)
 
-	Ban(sourceId string, targetAlias string) error
+	Ban(sourceId string, targetAlias string, date ntime.NTime) error
 	Unban(sourceId string, targetAlias string) error
 	GetBans(sourceId string) ([]BannedUser, error)
 	GetUserRelations(userId string) ([]RelationData, []RelationData, error)

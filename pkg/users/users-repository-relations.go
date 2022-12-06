@@ -1,6 +1,9 @@
 package users
 
-import "github.com/mattn/go-sqlite3"
+import (
+	"github.com/mattn/go-sqlite3"
+	"github.com/silktrader/kvasari/pkg/ntime"
+)
 
 func (ur *userRepository) IsFollowing(followerId string, targetId string) (exists bool) {
 	var err = ur.Connection.QueryRow(
@@ -11,14 +14,12 @@ func (ur *userRepository) IsFollowing(followerId string, targetId string) (exist
 	return err == nil && exists
 }
 
-func (ur *userRepository) Follow(followerId string, targetAlias string) error {
+func (ur *userRepository) Follow(followerId string, targetAlias string, date ntime.NTime) error {
 	res, err := ur.Connection.Exec(`
 		INSERT INTO followers (follower, target, date)
-		SELECT ?, id as targetId, datetime('now')
+		SELECT ?, id as targetId, ?
 		FROM users WHERE alias = ? AND ? NOT IN (SELECT target FROM bans WHERE source = targetId)`,
-		followerId,
-		targetAlias,
-		followerId,
+		followerId, date, targetAlias, followerId,
 	)
 
 	// detects whether the requester is already among the target's followers
@@ -63,7 +64,7 @@ func (ur *userRepository) Unfollow(followerId string, targetAlias string) error 
 }
 
 // Ban will return true for successful bans, false when no new bans are detected, or an error when the operation fails.
-func (ur *userRepository) Ban(sourceId string, targetAlias string) error {
+func (ur *userRepository) Ban(sourceId string, targetAlias string, date ntime.NTime) error {
 	tx, err := ur.Connection.Begin()
 	if err != nil {
 		return err
@@ -75,8 +76,8 @@ func (ur *userRepository) Ban(sourceId string, targetAlias string) error {
 	// the INSERT must follow the DELETE statement, so to return a relevant `RowsAffected` count
 	res, err := tx.Exec(`
 		DELETE FROM followers WHERE follower IN (SELECT id FROM users WHERE alias = ?) AND target = ?;
-		INSERT INTO bans (source, date, target) SELECT ?, datetime('now'), id FROM users WHERE alias = ?;
-	`, targetAlias, sourceId, sourceId, targetAlias)
+		INSERT INTO bans (source, date, target) SELECT ?, ?, id FROM users WHERE alias = ?;
+	`, targetAlias, sourceId, sourceId, date, targetAlias)
 
 	// detects whether the requester is already among the target's followers
 	if sqliteErr, ok := err.(sqlite3.Error); ok {

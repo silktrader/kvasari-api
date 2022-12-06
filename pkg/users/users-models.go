@@ -74,7 +74,7 @@ type BannedUser struct {
 	Id     string
 	Alias  string
 	Name   string
-	Banned time.Time
+	Banned ntime.NTime
 }
 
 type BanUserData struct {
@@ -92,7 +92,7 @@ type Follower struct {
 	Alias    string
 	Name     string
 	Email    string
-	Followed time.Time
+	Followed ntime.NTime
 }
 
 type FollowUserData struct {
