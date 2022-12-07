@@ -25,10 +25,6 @@ components:
         application/json:
           schema:
             type: object
-            x-examples:
-              Example 1:
-                Message: Possibly helpful message
-                Timestamp: "2022-12-02T17:03:51Z"
             properties:
               Message:
                 type: string
@@ -39,7 +35,7 @@ components:
               - Message
               - Timestamp
           examples:
-            Example 1:
+            common:
               value:
                 Message: A message describing what went wrong with the operation and how to avoid further issues.
                 Timestamp: "2022-12-02T17:03:51Z"
@@ -50,7 +46,7 @@ components:
           schema:
             type: object
             x-examples:
-              Example 1:
+              common:
                 Error: Something horrible occurred
                 Timestamp: "2022-12-02T17:34:33Z"
             properties:
@@ -59,6 +55,7 @@ components:
                 description: Helpful error message void of debug information
               Timestamp:
                 $ref: "#/components/schemas/Timestamp"
+
   parameters:
     UserAlias:
       name: alias
@@ -90,6 +87,7 @@ components:
         maxLength: 36
         example: 497f6eca-6276-4993-bfeb-53cbbbba6f08
       description: Randomly generated unique identifier of an artwork
+
   schemas:
     UserAlias:
       title: UserAlias
@@ -142,7 +140,7 @@ components:
       maxLength: 160
       format: uri
       x-examples:
-        Example 1: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Gustav_Klimt_010.jpg/1024px-Gustav_Klimt_010.jpg"
+        common: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Gustav_Klimt_010.jpg/1024px-Gustav_Klimt_010.jpg"
 security:
   - bearerAuth: []
 tags:
@@ -169,10 +167,6 @@ paths:
           application/json:
             schema:
               type: object
-              x-examples:
-                Example 1:
-                  Alias: eschiele
-                  Password: whateverlongpassword
               properties:
                 Alias:
                   $ref: "#/components/schemas/UserAlias"
@@ -182,7 +176,7 @@ paths:
                 - Alias
                 - Password
             examples:
-              Example 1:
+              common:
                 value:
                   Alias: eschiele
                   Password: notusedbutstored
@@ -193,17 +187,13 @@ paths:
             application/json:
               schema:
                 type: object
-                x-examples:
-                  Example 1:
-                    Id: c09cb1fd-495f-4f63-84dc-87c15a2f7740
-                    Status: authenticated
                 properties:
                   Id:
                     $ref: "#/components/schemas/UUID"
                   Status:
                     type: string
               examples:
-                Example 1:
+                common:
                   value:
                     Id: c09cb1fd-495f-4f63-84dc-87c15a2f7740
                     Status: authenticated
@@ -223,12 +213,6 @@ paths:
           application/json:
             schema:
               type: object
-              x-examples:
-                Example 1:
-                  Name: John Everett Millais
-                  Alias: millais
-                  Email: jem@gmail.com
-                  Password: placeholder
               properties:
                 Name:
                   type: string
@@ -241,7 +225,7 @@ paths:
                   type: string
                   format: password
             examples:
-              Example 1:
+              common:
                 value:
                   Name: John Everett Millais
                   Alias: millais
@@ -254,14 +238,6 @@ paths:
             application/json:
               schema:
                 type: object
-                x-examples:
-                  Example 1:
-                    Id: fac2f1d8-3bef-440b-9226-c2149f55e1c0
-                    Alias: jemillais
-                    Name: John Everett Millais
-                    Email: jemk@gmail.com
-                    Created: "2022-12-02T17:28:43Z"
-                    Updated: "2022-12-02T17:28:43Z"
                 properties:
                   Id:
                     $ref: "#/components/schemas/UUID"
@@ -282,7 +258,7 @@ paths:
                     format: date-time
                     description: RFC3339 UTC timestamp
               examples:
-                Example 1:
+                common:
                   value:
                     Id: fac2f1d8-3bef-440b-9226-c2149f55e1c0
                     Alias: jemillais
@@ -306,9 +282,6 @@ paths:
           application/json:
             schema:
               type: object
-              x-examples:
-                Example 1:
-                  Name: Egon Schiele
               properties:
                 Name:
                   type: string
@@ -336,16 +309,13 @@ paths:
           application/json:
             schema:
               type: object
-              x-examples:
-                Example 1:
-                  Alias: eschiele
               properties:
                 Alias:
                   type: string
                   description: A new unique alias for the user
               required:
                 - Alias
-        description: ""
+        description: "A new user alias"
       responses:
         "204":
           description: No Content
@@ -371,14 +341,8 @@ paths:
             application/json:
               schema:
                 type: array
-                x-examples:
-                  Example 1:
-                    - Id: 38dc5047-db66-46b4-81a7-f77bd84d0516
-                      Alias: waterhouse
-                      Name: John William Waterhouse
-                      Banned: "2022-12-02T19:13:57Z"
                 minItems: 0
-                maxItems: 100
+                maxItems: 1000
                 uniqueItems: true
                 items:
                   type: object
@@ -397,7 +361,7 @@ paths:
                     - Name
                     - Banned
               examples:
-                Example 1:
+                common:
                   value:
                     - Id: 38dc5047-db66-46b4-81a7-f77bd84d0516
                       Alias: waterhouse
@@ -418,21 +382,30 @@ paths:
           application/json:
             schema:
               type: object
-              x-examples:
-                Example 1:
-                  TargetAlias: waterhouse
               properties:
                 TargetAlias:
                   $ref: "#/components/schemas/UserAlias"
             examples:
-              Example 1:
+              common:
                 value:
                   TargetAlias: waterhouse
       responses:
-        "204":
-          description: Successful response
+        "201":
+          description: User Banned
           content:
-            application/json: {}
+            application/json:
+              schema:
+                type: object
+                properties:
+                  Alias:
+                    $ref: "#/components/schemas/UserAlias"
+                  Banned:
+                    $ref: "#/components/schemas/Timestamp"
+              examples:
+                common:
+                  value:
+                    - Alias: gklimt
+                      Banned: "2022-11-27T19:55:34Z"
         "400":
           $ref: "#/components/responses/TimestampedMessage"
         "403":
@@ -473,13 +446,8 @@ paths:
             application/json:
               schema:
                 type: array
-                x-examples:
-                  Example 1:
-                    - ID: 637c8e48-6e0b-4b6c-acc4-a0ff293dcac2
-                      Alias: gklimt
-                      Name: Gustav Klimt
-                      Email: klimt@gmail.com
-                      Followed: "2022-11-27T19:55:34Z"
+                minItems: 0
+                maxItems: 1000
                 items:
                   type: object
                   properties:
@@ -494,7 +462,7 @@ paths:
                     Followed:
                       $ref: "#/components/schemas/Timestamp"
               examples:
-                Example 1:
+                common:
                   value:
                     - ID: 637c8e48-6e0b-4b6c-acc4-a0ff293dcac2
                       Alias: gklimt
@@ -522,9 +490,6 @@ paths:
           application/json:
             schema:
               type: object
-              x-examples:
-                Example 1:
-                  targetAlias: egonschiele
               properties:
                 targetAlias:
                   $ref: "#/components/schemas/UserAlias"
@@ -532,10 +497,22 @@ paths:
                 - targetAlias
         description: The unique alias matching the target user to follow.
       responses:
-        "204":
-          description: Successful response
+        "201":
+          description: User Followed
           content:
-            application/json: {}
+            application/json:
+              schema:
+                type: object
+                properties:
+                  Alias:
+                    $ref: "#/components/schemas/UserAlias"
+                  Followed:
+                    $ref: "#/components/schemas/Timestamp"
+              examples:
+                common:
+                  value:
+                    - Alias: gklimt
+                      Followed: "2022-11-27T19:55:34Z"
         "400":
           $ref: "#/components/responses/TimestampedMessage"
         "403":
@@ -553,9 +530,7 @@ paths:
       summary: Unfollow User
       responses:
         "204":
-          description: Successful response
-          content:
-            application/json: {}
+          description: No Content
         "400":
           $ref: "#/components/responses/TimestampedMessage"
         "403":
@@ -586,7 +561,7 @@ paths:
               required:
                 - Comment
             examples:
-              Example 1:
+              common:
                 value:
                   Comment: One of his most memorable works.
         description: "A textual commment, unformatted, limited to 3000 characters"
@@ -598,10 +573,10 @@ paths:
               schema:
                 type: object
                 x-examples:
-                  Example 1:
+                  common:
                     Id: 4b6cc7c6-cad5-4585-9aca-8cf425319345
                     Date: "2022-12-04T09:53:56Z"
-                description: "ID and timestamp of the posted comment, for display and future deletion or editing."
+                description: "ID and timestamp of the posted comment, for display and future deletion or editing"
                 properties:
                   Id:
                     $ref: "#/components/schemas/UUID"
@@ -630,9 +605,7 @@ paths:
       summary: Delete Artwork Comment
       responses:
         "204":
-          description: Successful response
-          content:
-            application/json: {}
+          description: Artwork Deleted
         "404":
           $ref: "#/components/responses/TimestampedMessage"
         "500":
@@ -659,7 +632,7 @@ paths:
             schema:
               type: object
               x-examples:
-                Example 1:
+                common:
                   Reaction: Like
               additionalProperties: false
               properties:
@@ -716,14 +689,6 @@ paths:
           application/json:
             schema:
               type: object
-              x-examples:
-                Example 1:
-                  Title: Danaë
-                  Description: "Danaë was a popular subject in the early 1900s for many artists; she was used as the quintessential symbol of divine love, and transcendence."
-                  PictureUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Gustav_Klimt_010.jpg/1024px-Gustav_Klimt_010.jpg"
-                  Location: "Galerie Würthle, Vienna"
-                  Year: 1907
-                  Type: Painting
               properties:
                 AuthorId:
                   $ref: "#/components/schemas/UUID"
@@ -752,7 +717,7 @@ paths:
                 - PictureUrl
                 - Type
             examples:
-              Example 1:
+              common:
                 value:
                   Title: Danaë
                   Description: "Danaë was a popular subject in the early 1900s for many artists; she was used as the quintessential symbol of divine love, and transcendence."
@@ -769,17 +734,13 @@ paths:
             application/json:
               schema:
                 type: object
-                x-examples:
-                  Example 1:
-                    Id: f295c60a-60bf-495e-be9f-32882dac63ca
-                    Updated: "2022-12-02T22:49:54Z"
                 properties:
                   Id:
                     $ref: "#/components/schemas/UUID"
                   Updated:
                     $ref: "#/components/schemas/Timestamp"
               examples:
-                Example 1:
+                common:
                   value:
                     Id: f295c60a-60bf-495e-be9f-32882dac63ca
                     Updated: "2022-12-02T22:49:54Z"
@@ -801,9 +762,7 @@ paths:
       summary: Delete Artwork
       responses:
         "204":
-          description: Successful response
-          content:
-            application/json: {}
+          description: Deleted
         "400":
           $ref: "#/components/responses/TimestampedMessage"
       operationId: deletePhoto
@@ -823,23 +782,6 @@ paths:
             application/json:
               schema:
                 type: object
-                x-examples:
-                  Example 1:
-                    Artworks:
-                      - ID: 6c145ddb-3152-488e-9724-5aeefd9d8862
-                        Title: Death and the Maiden
-                        PictureURL: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/27/Egon_Schiele_012.jpg/1280px-Egon_Schiele_012.jpg"
-                        Added: "2022-12-01T22:54:12Z"
-                    Followers:
-                      - Id: 637c8e48-6e0b-4b6c-acc4-a0ff293dcac2
-                        Alias: gklimt
-                        Name: Gustav Klimt
-                        Date: "2022-11-27T19:55:34Z"
-                    Followed:
-                      - Id: 637c8e48-6e0b-4b6c-acc4-a0ff293dcac2
-                        Alias: gklimt
-                        Name: Gustav Klimt
-                        Date: "2022-11-27T19:39:51Z"
                 properties:
                   TotalArtworks:
                     type: integer
@@ -865,6 +807,7 @@ paths:
                   Followers:
                     type: array
                     minItems: 0
+                    maxItems: 1000
                     items:
                       type: object
                       additionalProperties: false
@@ -880,6 +823,7 @@ paths:
                   Followed:
                     type: array
                     minItems: 0
+                    maxItems: 1000
                     items:
                       type: object
                       additionalProperties: false
@@ -898,7 +842,7 @@ paths:
                   - Followers
                   - Followed
               examples:
-                Example 1:
+                common:
                   value:
                     TotalArtworks: 3
                     Artworks:
@@ -965,8 +909,53 @@ paths:
           description: Successful response
           content:
             application/json:
+              schema:
+                type: object
+                properties:
+                  Artworks:
+                    type: array
+                    minItems: 0
+                    maxItems: 12
+                    items:
+                      type: object
+                      additionalProperties: false
+                      properties:
+                        ID:
+                          $ref: "#/components/schemas/UUID"
+                        Title:
+                          type: string
+                        PictureURL:
+                          $ref: "#/components/schemas/PictureURL"
+                        Added:
+                          $ref: "#/components/schemas/Timestamp"
+                  NewArtworks:
+                    type: array
+                    minItems: 0
+                    maxItems: 100
+                    items:
+                      type: object
+                      additionalProperties: false
+                      properties:
+                        ID:
+                          $ref: "#/components/schemas/UUID"
+                        Title:
+                          type: string
+                        PictureURL:
+                          $ref: "#/components/schemas/PictureURL"
+                        Added:
+                          $ref: "#/components/schemas/Timestamp"
+                  DeletedIds:
+                    type: array
+                    minItems: 0
+                    maxItems: 100
+                    items:
+                      $ref: "#/components/schemas/UUID"
+                required:
+                  - Artworks
+                  - NewArtworks
+                  - DeletedIds
               examples:
-                Example 1:
+                common:
                   value:
                     Artworks:
                       - ID: 44de4ffa-ccdd-478f-94c2-8faad6e46aaf
@@ -983,66 +972,6 @@ paths:
                         Added: "2022-11-28T11:35:41Z"
                     NewArtworks: []
                     DeletedIds: []
-              schema:
-                type: object
-                x-examples:
-                  Example 1:
-                    Artworks:
-                      - ID: 44de4ffa-ccdd-478f-94c2-8faad6e46aaf
-                        Title: Danaë
-                        PictureURL: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Gustav_Klimt_010.jpg/1024px-Gustav_Klimt_010.jpg"
-                        Added: "2022-12-01T23:22:04Z"
-                      - ID: ab84e3a6-3a60-40d3-a039-20ecf06cc936
-                        Title: The Kiss
-                        PictureURL: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Klimt_-_Der_Kuss.jpeg/607px-Klimt_-_Der_Kuss.jpeg?20101126060930"
-                        Added: "2022-11-28T11:43:18Z"
-                      - ID: 7910e00e-5de6-4bd8-ae8e-5d05d2e289e7
-                        Title: Giuditta ed Oloferne
-                        PictureURL: www.sample.org
-                        Added: "2022-11-28T11:35:41Z"
-                    NewArtworks: []
-                    DeletedIds: []
-                properties:
-                  Artworks:
-                    type: array
-                    maxItems: 12
-                    minItems: 0
-                    items:
-                      type: object
-                      additionalProperties: false
-                      properties:
-                        ID:
-                          $ref: "#/components/schemas/UUID"
-                        Title:
-                          type: string
-                        PictureURL:
-                          $ref: "#/components/schemas/PictureURL"
-                        Added:
-                          $ref: "#/components/schemas/Timestamp"
-                  NewArtworks:
-                    type: array
-                    minItems: 0
-                    items:
-                      type: object
-                      additionalProperties: false
-                      properties:
-                        ID:
-                          $ref: "#/components/schemas/UUID"
-                        Title:
-                          type: string
-                        PictureURL:
-                          $ref: "#/components/schemas/PictureURL"
-                        Added:
-                          $ref: "#/components/schemas/Timestamp"
-                  DeletedIds:
-                    type: array
-                    minItems: 0
-                    items:
-                      $ref: "#/components/schemas/UUID"
-                required:
-                  - Artworks
-                  - NewArtworks
-                  - DeletedIds
         "400":
           $ref: "#/components/responses/TimestampedMessage"
         "403":
