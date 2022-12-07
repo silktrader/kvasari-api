@@ -5,15 +5,6 @@ import (
 	"github.com/silktrader/kvasari/pkg/ntime"
 )
 
-func (ur *userRepository) IsFollowing(followerId string, targetId string) (exists bool) {
-	var err = ur.Connection.QueryRow(
-		"SELECT TRUE FROM followers WHERE follower = ? AND target = ?",
-		followerId,
-		targetId,
-	).Scan(&exists)
-	return err == nil && exists
-}
-
 func (ur *userRepository) Follow(followerId string, targetAlias string, date ntime.NTime) error {
 	res, err := ur.Connection.Exec(`
 		INSERT INTO followers (follower, target, date)
@@ -35,13 +26,17 @@ func (ur *userRepository) Follow(followerId string, targetAlias string, date nti
 	}
 
 	// when no rows are affected the requester was either banned or the target user doesn't exist
-	rows, err := res.RowsAffected()
-	if rows != 1 {
+	if followed, e := res.RowsAffected(); e != nil {
+		return e
+	} else if followed == 0 {
 		return ErrNotFound
 	}
+
 	return err
 }
 
+// Unfollow returns nil for successful operations, or adequate errors on failure,
+// such as when a target user isn't followed.
 func (ur *userRepository) Unfollow(followerId string, targetAlias string) error {
 	result, err := ur.Connection.Exec(
 		`DELETE FROM followers WHERE follower = ? AND target IN (SELECT id FROM users WHERE alias = ?)`,
@@ -51,19 +46,18 @@ func (ur *userRepository) Unfollow(followerId string, targetAlias string) error 
 	if err != nil {
 		return err
 	}
-	unfollowed, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
 
-	if unfollowed == 0 {
+	if unfollowed, e := result.RowsAffected(); e != nil {
+		return e
+	} else if unfollowed == 0 {
 		return ErrNotFound
 	}
 
 	return err
 }
 
-// Ban will return true for successful bans, false when no new bans are detected, or an error when the operation fails.
+// Ban returns nil for successful operations, or adequate errors on failure,
+// such as when the target is already banned. A ban elicits the successive unfollowing of the source by the target.
 func (ur *userRepository) Ban(sourceId string, targetAlias string, date ntime.NTime) error {
 	tx, err := ur.Connection.Begin()
 	if err != nil {
@@ -95,11 +89,9 @@ func (ur *userRepository) Ban(sourceId string, targetAlias string, date ntime.NT
 		return err
 	}
 
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if affected == 0 {
+	if affected, e := res.RowsAffected(); e != nil {
+		return e
+	} else if affected == 0 {
 		return ErrNotFound
 	}
 	return err
@@ -112,36 +104,25 @@ func (ur *userRepository) Ban(sourceId string, targetAlias string, date ntime.NT
 func (ur *userRepository) Unban(sourceId string, targetAlias string) error {
 	result, err := ur.Connection.Exec(
 		`DELETE FROM bans WHERE source = ? AND target IN (SELECT id FROM users WHERE alias = ?)`,
-		sourceId,
-		targetAlias,
+		sourceId, targetAlias,
 	)
 
 	if err != nil {
 		return err
 	}
 
-	banned, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-
-	if banned == 0 {
+	// return an appropriate error when the target user isn't found
+	if banned, e := result.RowsAffected(); e != nil {
+		return e
+	} else if banned == 0 {
 		return ErrNotFound
 	}
 
 	return err
 }
 
-func (ur *userRepository) IsBanning(sourceId string, targetId string) (isBanning bool) {
-	var err = ur.Connection.QueryRow(
-		"SELECT TRUE FROM bans WHERE source = ? AND target = ?",
-		sourceId,
-		targetId,
-	).Scan(&isBanning)
-	return err == nil && isBanning
-
-}
-
+// GetBans fetches all the users banned by the source ID, providing the
+// ID, alias, name and the date of the ban of each targeted user.
 func (ur *userRepository) GetBans(id string) ([]BannedUser, error) {
 	var banned = make([]BannedUser, 0)
 	rows, err := ur.Connection.Query(`
@@ -153,6 +134,8 @@ func (ur *userRepository) GetBans(id string) ([]BannedUser, error) {
 		return nil, err
 	}
 
+	defer closeRows(rows)
+
 	for rows.Next() {
 		var bannedUser BannedUser
 		if err = rows.Scan(&bannedUser.Id, &bannedUser.Alias, &bannedUser.Name, &bannedUser.Banned); err != nil {
@@ -161,13 +144,5 @@ func (ur *userRepository) GetBans(id string) ([]BannedUser, error) {
 		banned = append(banned, bannedUser)
 	}
 
-	if err = rows.Err(); err != nil {
-		return banned, err
-	}
-
-	if err = rows.Close(); err != nil {
-		return banned, err
-	}
-
-	return banned, nil
+	return banned, rows.Err()
 }

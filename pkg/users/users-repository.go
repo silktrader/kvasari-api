@@ -20,7 +20,6 @@ type UserRepository interface {
 	UpdateName(userId string, newName string) error
 	UpdateAlias(userId string, newAlias string) error
 
-	IsFollowing(followerId string, targetId string) bool
 	Follow(followerId string, targetAlias string, date ntime.NTime) error
 	Unfollow(followerId string, targetAlias string) error
 	GetFollowers(userAlias string) ([]Follower, error)
