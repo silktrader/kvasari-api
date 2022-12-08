@@ -88,7 +88,7 @@ func (data BanUserData) Validate() error {
 // Followers
 
 type Follower struct {
-	ID       string
+	Id       string
 	Alias    string
 	Name     string
 	Email    string

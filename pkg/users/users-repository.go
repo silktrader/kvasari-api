@@ -90,7 +90,7 @@ func (ur *userRepository) GetFollowers(userAlias string) ([]Follower, error) {
 
 	for rows.Next() {
 		var follower Follower
-		if err = rows.Scan(&follower.ID, &follower.Alias, &follower.Name, &follower.Email, &follower.Followed); err != nil {
+		if err = rows.Scan(&follower.Id, &follower.Alias, &follower.Name, &follower.Email, &follower.Followed); err != nil {
 			return followers, err
 		}
 		followers = append(followers, follower)

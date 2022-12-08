@@ -18,47 +18,32 @@ components:
     bearerAuth:
       type: http
       scheme: bearer
+
   responses:
     TimestampedMessage:
       description: "Successful or unsuccessful request, with description message and timestamp."
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              Message:
-                type: string
-                description: "An ideally helpful message describing bad requests, not found resources, etc."
-              Timestamp:
-                $ref: "#/components/schemas/Timestamp"
-            required:
-              - Message
-              - Timestamp
-          examples:
-            common:
-              value:
-                Message: A message describing what went wrong with the operation and how to avoid further issues.
-                Timestamp: "2022-12-02T17:03:51Z"
+            $ref: "#/components/schemas/TimestampedMessage"
+          example:
+            Message: A message describing what went wrong with the operation and how to avoid further issues.
+            Timestamp: "2022-12-02T17:03:51Z"
+
     TimestampedError:
       description: Hopefully handled internal server error.
       content:
         application/json:
           schema:
-            type: object
-            x-examples:
-              common:
-                Error: Something horrible occurred
-                Timestamp: "2022-12-02T17:34:33Z"
-            properties:
-              Error:
-                type: string
-                description: Helpful error message void of debug information
-              Timestamp:
-                $ref: "#/components/schemas/Timestamp"
+            $ref: "#/components/schemas/TimestampedError"
+            example:
+              Error: Something horrible occurred
+              Timestamp: "2022-12-02T17:34:33Z"
 
   parameters:
     UserAlias:
       name: alias
+      description: User alias that uniquely identifies them.
       in: path
       required: true
       schema:
@@ -66,18 +51,22 @@ components:
         example: gklimt
         minLength: 5
         maxLength: 16
-      description: User alias that uniquely identifies them
+        pattern: ^[a-z0-9_-]{5,16}$
+
     Target:
       name: target
+      description: User alias that uniquely identifies them.
       in: path
       required: true
       schema:
         type: string
         minLength: 5
         maxLength: 16
-      description: User alias that uniquely identifies them
+        pattern: ^[a-z0-9_-]{5,16}$
+
     ArtworkID:
       name: artworkId
+      description: Randomly generated unique identifier of an artwork.
       in: path
       required: true
       schema:
@@ -85,64 +74,255 @@ components:
         format: uuid
         minLength: 36
         maxLength: 36
+        pattern: '^[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}$'
         example: 497f6eca-6276-4993-bfeb-53cbbbba6f08
-      description: Randomly generated unique identifier of an artwork
 
   schemas:
+    TimestampedMessage:
+      title: Timestamped Message
+      type: object
+      description: A server message and its date of inception.
+      properties:
+        Message:
+          type: string
+          description: "An ideally helpful message describing bad requests, not found resources, etc."
+        Timestamp:
+          $ref: "#/components/schemas/Timestamp"
+      required:
+        - Message
+        - Timestamp
+
+    TimestampedError:
+      title: Timestamped Error
+      type: object
+      description: A server error and its date of inception.
+      properties:
+        Error:
+          type: string
+          description: "Error message stripped of debug information, for security purposes"
+        Timestamp:
+          $ref: "#/components/schemas/Timestamp"
+      required:
+        - Error
+        - Timestamp
+
+    UserRegistrationResponse:
+      title: User Registration
+      type: object
+      description: User data following their registration
+      properties:
+        Id:
+          $ref: "#/components/schemas/UUID"
+        Alias:
+          $ref: "#/components/schemas/UserAlias"
+        Name:
+          $ref: "#/components/schemas/UserName"
+        Email:
+          type: string
+          format: email
+          description: User provided email guaranteed to be unique
+        Created:
+          $ref: "#/components/schemas/Timestamp"
+        Updated:
+          $ref: "#/components/schemas/Timestamp"
+
+    UserBans:
+      title: User Bans
+      type: array
+      description: List of users banned by the requester
+      minItems: 0
+      maxItems: 1000
+      uniqueItems: true
+      items:
+        type: object
+        properties:
+          Id:
+            $ref: "#/components/schemas/UUID"
+          Alias:
+            $ref: "#/components/schemas/UserAlias"
+          Name:
+            $ref: "#/components/schemas/UserName"
+          Banned:
+            $ref: "#/components/schemas/Timestamp"
+        required:
+          - Id
+          - Alias
+          - Name
+          - Banned
+
+    BannedUserResponse:
+      title: Banned User Response
+      type: object
+      description: Data related to the banning of a user
+      properties:
+        Alias:
+          $ref: "#/components/schemas/UserAlias"
+        Banned:
+          $ref: "#/components/schemas/Timestamp"
+
+    FollowersResponse:
+      title: User Followers
+      description: An array comprising the data of users who follow a given source.
+      type: array
+      minItems: 0
+      maxItems: 1000
+      items:
+        type: object
+        properties:
+          Id:
+            $ref: "#/components/schemas/UUID"
+          Alias:
+            $ref: "#/components/schemas/UserAlias"
+          Name:
+            $ref: "#/components/schemas/UserName"
+          Email:
+            $ref: "#/components/schemas/Email"
+          Followed:
+            $ref: "#/components/schemas/Timestamp"
+
+    FollowedUserResponse:
+      title: Followed User Response
+      type: object
+      description: Date and confirmation of following a user
+      additionalProperties: false
+      properties:
+        Alias:
+          $ref: "#/components/schemas/UserAlias"
+        Followed:
+          $ref: "#/components/schemas/Timestamp"
+
+    CreatedCommentResponse:
+      title: Created Comment Response
+      type: object
+      description: "ID and timestamp of the posted comment, for display and future deletion or editing"
+      additionalProperties: false
+      properties:
+        Id:
+          $ref: "#/components/schemas/UUID"
+        Date:
+          $ref: "#/components/schemas/Timestamp"
+
+    ReactedResponse:
+      title: User Reaction Response
+      type: object
+      description: "Confirmation of the recorded reaction type and date"
+      additionalProperties: false
+      properties:
+        Reaction:
+          $ref: "#/components/schemas/Reaction"
+        Date:
+          $ref: "#/components/schemas/Timestamp"
+
     UserAlias:
-      title: UserAlias
+      title: User Alias
+      description: A unique user alias
       type: string
       example: gklimt
       minLength: 5
       maxLength: 16
-      description: A unique user alias
+      pattern: "^[a-z0-9_-]{5,16}$"
+
+    UserName:
+      title: User Name
+      description: A user's full name
+      type: string
+      example: Gustav Klimt
+      minLength: 5
+      maxLength: 50
+      pattern: ^[\w'\-,.]*[^_!¡?÷?¿\/\\+=@#$%ˆ&*(){}|~<>;:[\]]*$
+
+    UserPassword:
+      title: User Password
+      description: A user chosen password
+      type: string
+      format: password
+      example: notastrong_password_AT_4ll
+      minLength: 8
+      maxLength: 50
+      pattern: '[\s\S]*'
+
+    Email:
+      title: Email
+      description: An email address
+      type: string
+      format: email
+      example: silktrader@gmail.com
+      minLength: 5
+      maxLength: 100
+      pattern: '[^@ \t\r\n]+@[^@ \t\r\n]+\.[^@ \t\r\n]+'
+
     UUID:
       title: UUID
+      description: "Randomly generated (almost) universally unique identifier, i.e. UUIDv4"
       type: string
       format: uuid
       minLength: 36
       maxLength: 36
-      description: "Randomly generated (almost) universally unique identifier, i.e. UUIDv4"
       example: 497f6eca-6276-4993-bfeb-53cbbbba6f08
+      pattern: ^[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}$
+
     Timestamp:
       title: Timestamp
-      type: string
       description: RFC3339 encoded UTC time
-      format: date-time
-      example: "2019-08-24T14:15:22Z"
-    Email:
-      title: Email
       type: string
-      format: email
-      description: A unique email address associated to each user.
+      format: date-time
+      minLength: 20
+      maxLength: 20
+      example: "2019-08-24T14:15:22Z"
+
     Reaction:
       title: Reaction
+      description: A user reaction to an artwork.
       type: string
       enum:
         - Like
         - Perplexed
-      description: A user reaction to an artwork.
+
     ArtworkType:
-      title: ArtworkType
-      type: string
+      title: Artwork's Type
       description: The artwork's visual medium.
+      type: string
       enum:
         - Painting
         - Drawing
         - Sculpture
         - Photograph
         - Architecture
+
+    ArtworkTitle:
+      title: Artwork's Title
+      description: An optional title describing the artwork.
+      type: string
+      minLength: 1
+      maxLength: 250
+      pattern: '[\s\S]*'
+
     PictureURL:
       title: PictureURL
+      description: The HTTP URL of a picture, terminating with a valid format extension.
       type: string
-      pattern: '(http)?s?:?(\/\/[^"'']*\.(?:png|jpg|jpeg|png))'
+      pattern: '^https?://(?:[a-z0-9\-]+\.)+[a-z]{2,6}(?:/[^/#?]+)+\.(?:jpg|gif|png)$'
       minLength: 0
       maxLength: 160
-      format: uri
-      x-examples:
-        common: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Gustav_Klimt_010.jpg/1024px-Gustav_Klimt_010.jpg"
+      format: url
+      example: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Gustav_Klimt_010.jpg/1024px-Gustav_Klimt_010.jpg"
+
+    AuthenticationResponse:
+      type: object
+      description: The authentication attempt's result, including the requesting user ID and a status message.
+      properties:
+        Id:
+          $ref: "#/components/schemas/UUID"
+        Status:
+          description: A status describing the operation, temporarily limited to "authenticated".
+          type: string
+      example:
+        Id: c09cb1fd-495f-4f63-84dc-87c15a2f7740
+        Status: authenticated
+
 security:
   - bearerAuth: []
+
 tags:
   - name: Artworks
     description: "Endpoints allowing artworks to be added, removed, edited or simply viewed."
@@ -152,6 +332,7 @@ tags:
     description: Endpoints related to users administration.
   - name: User Relationships
     description: "Endpoints regulating users bans and followers, their addition and removal."
+
 paths:
   /sessions:
     post:
@@ -167,36 +348,25 @@ paths:
           application/json:
             schema:
               type: object
+              description: The user's authorisation credentials.
               properties:
                 Alias:
                   $ref: "#/components/schemas/UserAlias"
                 Password:
-                  type: string
+                  $ref: "#/components/schemas/UserPassword"
               required:
                 - Alias
                 - Password
-            examples:
-              common:
-                value:
-                  Alias: eschiele
-                  Password: notusedbutstored
+            example:
+              Alias: eschiele
+              Password: notusedbutstored
       responses:
         "200":
-          description: Successful authentification
+          description: Successful authentication
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  Id:
-                    $ref: "#/components/schemas/UUID"
-                  Status:
-                    type: string
-              examples:
-                common:
-                  value:
-                    Id: c09cb1fd-495f-4f63-84dc-87c15a2f7740
-                    Status: authenticated
+                $ref: "#/components/schemas/AuthenticationResponse"
         "400":
           $ref: "#/components/responses/TimestampedMessage"
       operationId: doLogin
@@ -213,59 +383,28 @@ paths:
           application/json:
             schema:
               type: object
+              description: User basic details, provided during registration, aimed at identifying them.
               properties:
                 Name:
-                  type: string
+                  $ref: "#/components/schemas/UserName"
                 Alias:
                   $ref: "#/components/schemas/UserAlias"
                 Email:
-                  type: string
-                  format: email
+                  $ref: "#/components/schemas/Email"
                 Password:
-                  type: string
-                  format: password
-            examples:
-              common:
-                value:
-                  Name: John Everett Millais
-                  Alias: millais
-                  Email: jem@gmail.com
-                  Password: pa$$word
+                  $ref: "#/components/schemas/UserPassword"
+            example:
+              Name: John Everett Millais
+              Alias: millais
+              Email: jem@gmail.com
+              Password: pa$$word
       responses:
         "200":
           description: User Registered
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  Id:
-                    $ref: "#/components/schemas/UUID"
-                  Alias:
-                    $ref: "#/components/schemas/UserAlias"
-                  Name:
-                    type: string
-                  Email:
-                    type: string
-                    format: email
-                    description: User provided email guaranteed to be unique
-                  Created:
-                    type: string
-                    format: date-time
-                    description: RFC3339 UTC timestamp
-                  Updated:
-                    type: string
-                    format: date-time
-                    description: RFC3339 UTC timestamp
-              examples:
-                common:
-                  value:
-                    Id: fac2f1d8-3bef-440b-9226-c2149f55e1c0
-                    Alias: jemillais
-                    Name: John Everett Millais
-                    Email: jem@gmail.com
-                    Created: "2022-12-02T17:28:43Z"
-                    Updated: "2022-12-02T17:28:43Z"
+                $ref: "#/components/schemas/UserRegistrationResponse"
         "400":
           $ref: "#/components/responses/TimestampedMessage"
         "500":
@@ -282,10 +421,10 @@ paths:
           application/json:
             schema:
               type: object
+              description: The new user name.
               properties:
                 Name:
-                  type: string
-                  description: The user's new name
+                  $ref: "#/components/schemas/UserName"
               required:
                 - Name
       responses:
@@ -308,11 +447,11 @@ paths:
         content:
           application/json:
             schema:
+              description: The new unique user alias.
               type: object
               properties:
                 Alias:
-                  type: string
-                  description: A new unique alias for the user
+                  $ref: "#/components/schemas/UserAlias"
               required:
                 - Alias
         description: "A new user alias"
@@ -330,6 +469,7 @@ paths:
         - User Management
     parameters:
       - $ref: "#/components/parameters/UserAlias"
+
   "/users/{alias}/bans":
     get:
       summary: Get Bans
@@ -340,26 +480,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                minItems: 0
-                maxItems: 1000
-                uniqueItems: true
-                items:
-                  type: object
-                  properties:
-                    Id:
-                      $ref: "#/components/schemas/UUID"
-                    Alias:
-                      $ref: "#/components/schemas/UserAlias"
-                    Name:
-                      type: string
-                    Banned:
-                      $ref: "#/components/schemas/Timestamp"
-                  required:
-                    - Id
-                    - Alias
-                    - Name
-                    - Banned
+                $ref: "#/components/schemas/UserBans"
               examples:
                 common:
                   value:
@@ -382,30 +503,22 @@ paths:
           application/json:
             schema:
               type: object
+              description: The alias of the user to be banned.
               properties:
                 TargetAlias:
                   $ref: "#/components/schemas/UserAlias"
-            examples:
-              common:
-                value:
-                  TargetAlias: waterhouse
+            example:
+              TargetAlias: waterhouse
       responses:
         "201":
           description: User Banned
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  Alias:
-                    $ref: "#/components/schemas/UserAlias"
-                  Banned:
-                    $ref: "#/components/schemas/Timestamp"
-              examples:
-                common:
-                  value:
-                    - Alias: gklimt
-                      Banned: "2022-11-27T19:55:34Z"
+                $ref: "#/components/schemas/BannedUserResponse"
+              example:
+                Alias: gklimt
+                Banned: "2022-11-27T19:55:34Z"
         "400":
           $ref: "#/components/responses/TimestampedMessage"
         "403":
@@ -417,6 +530,7 @@ paths:
         - User Relationships
     parameters:
       - $ref: "#/components/parameters/UserAlias"
+
   "/users/{alias}/bans/{target}":
     delete:
       summary: Unban User
@@ -436,6 +550,7 @@ paths:
     parameters:
       - $ref: "#/components/parameters/UserAlias"
       - $ref: "#/components/parameters/Target"
+
   "/users/{alias}/followers":
     get:
       summary: Get Followers
@@ -445,22 +560,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                minItems: 0
-                maxItems: 1000
-                items:
-                  type: object
-                  properties:
-                    ID:
-                      $ref: "#/components/schemas/UUID"
-                    Alias:
-                      $ref: "#/components/schemas/UserAlias"
-                    Name:
-                      type: string
-                    Email:
-                      $ref: "#/components/schemas/Email"
-                    Followed:
-                      $ref: "#/components/schemas/Timestamp"
+                $ref: "#/components/schemas/FollowersResponse"
               examples:
                 common:
                   value:
@@ -482,6 +582,7 @@ paths:
         - User Relationships
     parameters:
       - $ref: "#/components/parameters/UserAlias"
+
   "/users/{alias}/followed":
     post:
       summary: Follow User
@@ -489,6 +590,7 @@ paths:
         content:
           application/json:
             schema:
+              description: The alias of the user to be followed.
               type: object
               properties:
                 targetAlias:
@@ -502,17 +604,10 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  Alias:
-                    $ref: "#/components/schemas/UserAlias"
-                  Followed:
-                    $ref: "#/components/schemas/Timestamp"
-              examples:
-                common:
-                  value:
-                    - Alias: gklimt
-                      Followed: "2022-11-27T19:55:34Z"
+                $ref: "#/components/schemas/FollowedUserResponse"
+              example:
+                Alias: gklimt
+                Followed: "2022-11-27T19:55:34Z"
         "400":
           $ref: "#/components/responses/TimestampedMessage"
         "403":
@@ -525,6 +620,7 @@ paths:
         - User Relationships
     parameters:
       - $ref: "#/components/parameters/UserAlias"
+
   "/users/{alias}/followed/{target}":
     delete:
       summary: Unfollow User
@@ -544,6 +640,7 @@ paths:
     parameters:
       - $ref: "#/components/parameters/UserAlias"
       - $ref: "#/components/parameters/Target"
+
   "/artworks/{artworkId}/comments":
     post:
       summary: Add Artwork Comment
@@ -551,37 +648,30 @@ paths:
         content:
           application/json:
             schema:
+              description: Artwork feedback in the form of a long plain text comment.
               type: object
               properties:
                 Comment:
                   type: string
+                  description: "A possibly constructive comment, limited to 3000 characters, but no shorter than 10"
                   minLength: 10
                   maxLength: 3000
-                  description: "A possibly constructive comment, limited to 3000 characters, but no shorter than 10"
+                  pattern: '[\s\S]*'
               required:
                 - Comment
-            examples:
-              common:
-                value:
-                  Comment: One of his most memorable works.
+            example:
+              Comment: One of his most memorable works.
         description: "A textual commment, unformatted, limited to 3000 characters"
       responses:
         "201":
-          description: Successful response
+          description: Comment created
           content:
             application/json:
               schema:
-                type: object
-                x-examples:
-                  common:
-                    Id: 4b6cc7c6-cad5-4585-9aca-8cf425319345
-                    Date: "2022-12-04T09:53:56Z"
-                description: "ID and timestamp of the posted comment, for display and future deletion or editing"
-                properties:
-                  Id:
-                    $ref: "#/components/schemas/UUID"
-                  Date:
-                    $ref: "#/components/schemas/Timestamp"
+                $ref: "#/components/schemas/CreatedCommentResponse"
+              example:
+                Id: 4b6cc7c6-cad5-4585-9aca-8cf425319345
+                Date: "2022-12-04T09:53:56Z"
         "400":
           $ref: "#/components/responses/TimestampedMessage"
         "500":
@@ -591,15 +681,8 @@ paths:
       operationId: commentPhoto
       description: Allows users to leave a comment on theirs or another user's artwork.
     parameters:
-      - name: artworkId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-          minLength: 36
-          maxLength: 36
-        description: The randomly generated unique identifier of an artwork
+      - $ref: "#/components/parameters/ArtworkID"
+
   "/artworks/{artworkId}/comments/{commentId}":
     delete:
       summary: Delete Artwork Comment
@@ -617,12 +700,13 @@ paths:
     parameters:
       - $ref: "#/components/parameters/ArtworkID"
       - schema:
-          type: string
+          $ref: "#/components/schemas/UUID"
         name: commentId
         in: path
         required: true
         description: The randomly generated unique identifier of a user comment
         example: "0e0dcd46-ef66-4b88-8b53-969385df4bce"
+
   "/artworks/{artworkId}/reactions/{alias}":
     put:
       summary: Set Artwork Reaction
@@ -630,28 +714,25 @@ paths:
         content:
           application/json:
             schema:
+              description: "A reaction, to be chosen among available adjectives and nouns, such as: Like, Perplexed, Admirative, etc."
               type: object
-              x-examples:
-                common:
-                  Reaction: Like
+              example:
+                Reaction: Like
               additionalProperties: false
               properties:
                 Reaction:
                   $ref: "#/components/schemas/Reaction"
-        description: ""
+        description: "The user's reaction elicited by the artwork"
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: false
-                properties:
-                  Reaction:
-                    $ref: "#/components/schemas/Reaction"
-                  Date:
-                    $ref: "#/components/schemas/Timestamp"
+                $ref: "#/components/schemas/ReactedResponse"
+              example:
+                Reaction: "Like"
+                Date: "2022-12-04T09:53:56Z"
         "400":
           $ref: "#/components/responses/TimestampedMessage"
         "403":
@@ -688,26 +769,32 @@ paths:
         content:
           application/json:
             schema:
+              description: Artwork's picture, along with its required and optional metadata.
               type: object
               properties:
                 AuthorId:
                   $ref: "#/components/schemas/UUID"
                 Title:
-                  type: string
-                  maxLength: 250
+                  $ref: "#/components/schemas/ArtworkTitle"
                 Description:
                   type: string
-                  maxLength: 3000
+                  description: An optional concise description of the artwork.
+                  minLength: 3
+                  maxLength: 1000
+                  pattern: '[\s\S]*'
                 PictureUrl:
                   $ref: "#/components/schemas/PictureURL"
                 Location:
                   type: string
+                  description: An optional mention of the artwork's current location.
+                  pattern: '[\s\S]*'
+                  minLength: 3
                   maxLength: 120
                 Year:
                   type: integer
+                  description: "An approximate estimate of the year when the artwork was created, often used when precise creation dates can't be ascertained."
                   minimum: -10000
                   maximum: 10000
-                  description: "Refers to the year of creation, displayed when a creation timestamp is absent."
                 Type:
                   $ref: "#/components/schemas/ArtworkType"
                 Created:
@@ -733,17 +820,16 @@ paths:
           content:
             application/json:
               schema:
+                description: The server generated artwork ID, along with its date of insertion, which matches its last update.
                 type: object
                 properties:
                   Id:
                     $ref: "#/components/schemas/UUID"
                   Updated:
                     $ref: "#/components/schemas/Timestamp"
-              examples:
-                common:
-                  value:
-                    Id: f295c60a-60bf-495e-be9f-32882dac63ca
-                    Updated: "2022-12-02T22:49:54Z"
+              example:
+                Id: f295c60a-60bf-495e-be9f-32882dac63ca
+                Updated: "2022-12-02T22:49:54Z"
         "400":
           $ref: "#/components/responses/TimestampedMessage"
         "403":
@@ -782,6 +868,7 @@ paths:
             application/json:
               schema:
                 type: object
+                description: Data pertaining to the user's profile page, including previews of user's artworks, as well as their followers and followed peers.
                 properties:
                   TotalArtworks:
                     type: integer
@@ -796,10 +883,10 @@ paths:
                       type: object
                       additionalProperties: false
                       properties:
-                        ID:
+                        Id:
                           $ref: "#/components/schemas/UUID"
                         Title:
-                          type: string
+                          $ref: "#/components/schemas/ArtworkTitle"
                         PictureURL:
                           $ref: "#/components/schemas/PictureURL"
                         Added:
@@ -808,6 +895,7 @@ paths:
                     type: array
                     minItems: 0
                     maxItems: 1000
+                    description: The users following the profile's owner.
                     items:
                       type: object
                       additionalProperties: false
@@ -817,13 +905,14 @@ paths:
                         Alias:
                           $ref: "#/components/schemas/UserAlias"
                         Name:
-                          type: string
+                          $ref: "#/components/schemas/UserName"
                         Date:
                           $ref: "#/components/schemas/Timestamp"
                   Followed:
                     type: array
                     minItems: 0
                     maxItems: 1000
+                    description: The users followed by the profile's owner.
                     items:
                       type: object
                       additionalProperties: false
@@ -833,7 +922,7 @@ paths:
                         Alias:
                           $ref: "#/components/schemas/UserAlias"
                         Name:
-                          type: string
+                          $ref: "#/components/schemas/UserName"
                         Date:
                           $ref: "#/components/schemas/Timestamp"
                 required:
@@ -846,15 +935,15 @@ paths:
                   value:
                     TotalArtworks: 3
                     Artworks:
-                      - ID: 6fb46dc0-9f6e-4f21-8b82-513bc746e15e
+                      - Id: 6fb46dc0-9f6e-4f21-8b82-513bc746e15e
                         Title: Danaë 2
                         PictureURL: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Gustav_Klimt_010.jpg/1024px-Gustav_Klimt_010.jpg"
                         Added: "2022-12-04T12:08:31Z"
-                      - ID: 0e0dcd46-ef66-4b88-8b53-969385df4bce
+                      - Id: 0e0dcd46-ef66-4b88-8b53-969385df4bce
                         Title: Danaë 2
                         PictureURL: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Gustav_Klimt_010.jpg/1024px-Gustav_Klimt_010.jpg"
                         Added: "2022-12-04T11:03:37Z"
-                      - ID: 6c145ddb-3152-488e-9724-5aeefd9d8862
+                      - Id: 6c145ddb-3152-488e-9724-5aeefd9d8862
                         Title: Death and the Maiden
                         PictureURL: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/27/Egon_Schiele_012.jpg/1280px-Egon_Schiele_012.jpg"
                         Added: "2022-12-01T22:54:12Z"
@@ -889,6 +978,8 @@ paths:
           schema:
             type: string
             format: date-time
+            minLength: 20
+            maxLength: 20
             example: "2022-12-02T02:46:05Z"
             pattern: '^[1-9]\d{3}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$'
           example: "2022-12-02T02:46:05Z"
@@ -899,6 +990,8 @@ paths:
           schema:
             type: string
             format: date-time
+            minLength: 20
+            maxLength: 20
             example: "2022-12-02T02:46:05Z"
             pattern: '^[1-9]\d{3}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$'
           example: "2022-12-02T15:04:05Z"
@@ -911,8 +1004,14 @@ paths:
             application/json:
               schema:
                 type: object
+                description: |-
+                  Artworks pictures and metadata used to populate a user's personal stream. 
+                  The `Artworks` collection comprises the latest twelve items, in reverse chronological order, added by followed peers, starting from the date specified in the `since` query parameter.
+                  `NewArtworks` contains those items that were added since the `latest` query parameter.
+                  `RemovedIds` marks artworks that were since deleted, and that may need to be scrapped from a collection built on previous responses.
                 properties:
                   Artworks:
+                    description: Twelve artworks or fewer, sorted by their date of upload, in descending order.
                     type: array
                     minItems: 0
                     maxItems: 12
@@ -920,15 +1019,16 @@ paths:
                       type: object
                       additionalProperties: false
                       properties:
-                        ID:
+                        Id:
                           $ref: "#/components/schemas/UUID"
                         Title:
-                          type: string
+                          $ref: "#/components/schemas/ArtworkTitle"
                         PictureURL:
                           $ref: "#/components/schemas/PictureURL"
                         Added:
                           $ref: "#/components/schemas/Timestamp"
                   NewArtworks:
+                    description: Artworks added after the `latest` timestamp provided in the request query.
                     type: array
                     minItems: 0
                     maxItems: 100
@@ -936,15 +1036,16 @@ paths:
                       type: object
                       additionalProperties: false
                       properties:
-                        ID:
+                        Id:
                           $ref: "#/components/schemas/UUID"
                         Title:
-                          type: string
+                          $ref: "#/components/schemas/ArtworkTitle"
                         PictureURL:
                           $ref: "#/components/schemas/PictureURL"
                         Added:
                           $ref: "#/components/schemas/Timestamp"
                   DeletedIds:
+                    description: Artworks removed after the `latest` timestamp, in the request query, and before the `since` one.
                     type: array
                     minItems: 0
                     maxItems: 100
@@ -958,18 +1059,14 @@ paths:
                 common:
                   value:
                     Artworks:
-                      - ID: 44de4ffa-ccdd-478f-94c2-8faad6e46aaf
+                      - Id: 44de4ffa-ccdd-478f-94c2-8faad6e46aaf
                         Title: Danaë
                         PictureURL: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Gustav_Klimt_010.jpg/1024px-Gustav_Klimt_010.jpg"
                         Added: "2022-12-01T23:22:04Z"
-                      - ID: ab84e3a6-3a60-40d3-a039-20ecf06cc936
+                      - Id: ab84e3a6-3a60-40d3-a039-20ecf06cc936
                         Title: The Kiss
-                        PictureURL: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Klimt_-_Der_Kuss.jpeg/607px-Klimt_-_Der_Kuss.jpeg?20101126060930"
+                        PictureURL: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Klimt_-_Der_Kuss.jpeg/607px-Klimt_-_Der_Kuss.jpg"
                         Added: "2022-11-28T11:43:18Z"
-                      - ID: 7910e00e-5de6-4bd8-ae8e-5d05d2e289e7
-                        Title: Giuditta ed Oloferne
-                        PictureURL: www.sample.org
-                        Added: "2022-11-28T11:35:41Z"
                     NewArtworks: []
                     DeletedIds: []
         "400":
