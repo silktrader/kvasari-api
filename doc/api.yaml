@@ -36,9 +36,9 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/TimestampedError"
-            example:
-              Error: Something horrible occurred
-              Timestamp: "2022-12-02T17:34:33Z"
+          example:
+            Error: Something horrible occurred
+            Timestamp: "2022-12-02T17:34:33Z"
 
   parameters:
     UserAlias:
@@ -118,9 +118,7 @@ components:
         Name:
           $ref: "#/components/schemas/UserName"
         Email:
-          type: string
-          format: email
-          description: User provided email guaranteed to be unique
+          $ref: "#/components/schemas/Email"
         Created:
           $ref: "#/components/schemas/Timestamp"
         Updated:
@@ -243,7 +241,7 @@ components:
 
     Email:
       title: Email
-      description: An email address
+      description: A user provided email address, guaranteed to be unique.
       type: string
       format: email
       example: silktrader@gmail.com
@@ -361,7 +359,7 @@ paths:
               Alias: eschiele
               Password: notusedbutstored
       responses:
-        "200":
+        "201":
           description: Successful authentication
           content:
             application/json:
@@ -399,7 +397,7 @@ paths:
               Email: jem@gmail.com
               Password: pa$$word
       responses:
-        "200":
+        "201":
           description: User Registered
           content:
             application/json:
@@ -1023,8 +1021,22 @@ paths:
                           $ref: "#/components/schemas/UUID"
                         Title:
                           $ref: "#/components/schemas/ArtworkTitle"
+                        AuthorAlias:
+                          $ref: "#/components/schemas/UserAlias"
+                        AuthorName:
+                          $ref: "#/components/schemas/UserName"
                         PictureURL:
                           $ref: "#/components/schemas/PictureURL"
+                        Reactions:
+                          type: integer
+                          description: "The number of reactions elicited by the artwork."
+                          minimum: 0
+                          maximum: 100000
+                        Comments:
+                          type: integer
+                          description: "The number of comments elicited by the artwork."
+                          minimum: 0
+                          maximum: 100000
                         Added:
                           $ref: "#/components/schemas/Timestamp"
                   NewArtworks:
@@ -1042,6 +1054,16 @@ paths:
                           $ref: "#/components/schemas/ArtworkTitle"
                         PictureURL:
                           $ref: "#/components/schemas/PictureURL"
+                        Reactions:
+                          type: integer
+                          description: "The number of reactions elicited by the artwork."
+                          minimum: 0
+                          maximum: 100000
+                        Comments:
+                          type: integer
+                          description: "The number of comments elicited by the artwork."
+                          minimum: 0
+                          maximum: 100000
                         Added:
                           $ref: "#/components/schemas/Timestamp"
                   DeletedIds:

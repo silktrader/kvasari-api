@@ -146,7 +146,7 @@ func login(ur UserRepository) http.HandlerFunc {
 		}
 
 		// one would set refresh and access tokens in the response but for the moment a status suffices
-		JSON.Ok(writer, struct {
+		JSON.Created(writer, struct {
 			Id     string
 			Status string
 		}{
