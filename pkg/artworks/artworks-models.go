@@ -102,7 +102,7 @@ type ProfileData struct {
 }
 
 type ArtworkProfilePreview struct {
-	ID         string
+	Id         string
 	Title      string
 	PictureURL string // ideally, a server generated preview
 	Added      ntime.NTime
@@ -124,4 +124,17 @@ func getStreamParams(streamParams url.Values) (since string, latest string, err 
 	}
 
 	return since, latest, err
+}
+
+// Stream Responses
+
+type ArtworkStreamPreview struct {
+	Id          string
+	Title       string
+	AuthorAlias string
+	AuthorName  string
+	PictureURL  string
+	Reactions   int
+	Comments    int
+	Added       ntime.NTime
 }

@@ -201,7 +201,7 @@ func (ar *artworkRepository) GetUserArtworks(userId string, pageSize int, page i
 
 	for rows.Next() {
 		var artwork ArtworkProfilePreview
-		if err = rows.Scan(&artwork.ID, &artwork.Title, &artwork.PictureURL, &artwork.Added, &tally); err != nil {
+		if err = rows.Scan(&artwork.Id, &artwork.Title, &artwork.PictureURL, &artwork.Added, &tally); err != nil {
 			return artworks, tally, err
 		}
 		artworks = append(artworks, artwork)
@@ -211,8 +211,8 @@ func (ar *artworkRepository) GetUserArtworks(userId string, pageSize int, page i
 }
 
 type StreamData struct {
-	Artworks    []ArtworkProfilePreview
-	NewArtworks []ArtworkProfilePreview
+	Artworks    []ArtworkStreamPreview
+	NewArtworks []ArtworkStreamPreview
 	DeletedIds  []string
 }
 
@@ -220,16 +220,24 @@ func (ar *artworkRepository) GetStream(userId string, since string, latest strin
 
 	// default artworks capacity set to default paginated size
 	var (
-		artworks    = make([]ArtworkProfilePreview, 0, 12)
-		newArtworks = make([]ArtworkProfilePreview, 0)
+		artworks    = make([]ArtworkStreamPreview, 0, 12)
+		newArtworks = make([]ArtworkStreamPreview, 0)
 		deletedIds  = make([]string, 0)
 	)
 
 	rows, err := ar.Connection.Query(`
-		SELECT id, title, picture_url, added, added > ? as new, deleted FROM artworks
+		SELECT arts.id, title, alias, name, picture_url, added, new, deleted,
+		       coalesce(comments_count, 0) as comments_count,
+		       coalesce(feedback_count, 0) as feedback_count
+		FROM (SELECT *, added > ? as new FROM artworks
 			WHERE author_id IN (SELECT target FROM followers WHERE follower = ?)
-			AND added < ? OR added > ? OR (deleted = TRUE AND added > ? AND added < ?)
-			ORDER BY added DESC LIMIT 12;`,
+			AND added < ? OR added > ? OR (deleted = TRUE AND added > ? AND added < ?)) as arts
+		JOIN users ON arts.author_id = users.id
+		LEFT JOIN (SELECT artwork, count(id) as comments_count FROM artwork_comments GROUP BY artwork) as comments
+		    ON arts.id = comments.artwork
+		LEFT JOIN (SELECT artwork, count(*) as feedback_count FROM artwork_feedback GROUP BY artwork) as feedback
+		    ON arts.id = feedback.artwork
+		ORDER BY added DESC LIMIT 12;`,
 		latest, userId, since, latest, latest, since,
 	)
 
@@ -241,8 +249,9 @@ func (ar *artworkRepository) GetStream(userId string, since string, latest strin
 
 	var deleted, recent bool
 	for rows.Next() {
-		var artwork ArtworkProfilePreview
-		if err = rows.Scan(&artwork.ID, &artwork.Title, &artwork.PictureURL, &artwork.Added, &recent, &deleted); err != nil {
+		var artwork ArtworkStreamPreview
+		if err = rows.Scan(&artwork.Id, &artwork.Title, &artwork.AuthorAlias, &artwork.AuthorName,
+			&artwork.PictureURL, &artwork.Added, &recent, &deleted, &artwork.Comments, &artwork.Reactions); err != nil {
 			return data, err
 		}
 
@@ -250,7 +259,7 @@ func (ar *artworkRepository) GetStream(userId string, since string, latest strin
 		case recent:
 			newArtworks = append(newArtworks, artwork)
 		case deleted:
-			deletedIds = append(deletedIds, artwork.ID)
+			deletedIds = append(deletedIds, artwork.Id)
 		default:
 			artworks = append(artworks, artwork)
 		}
