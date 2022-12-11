@@ -23,11 +23,17 @@ const (
 var artworkTypes = []interface{}{Painting, Drawing, Sculpture, Architecture, Photograph}
 
 type Artwork struct {
-	Id          string
-	AuthorId    string
+	Metadata  ArtworkMetadata
+	Comments  []CommentResponse
+	Reactions []ReactionResponse
+}
+
+type ArtworkMetadata struct {
+	AuthorName  string
+	AuthorAlias string
 	Title       string
 	Description string
-	PictureURL  string
+	PictureUrl  string
 	Location    string
 	Year        int
 	Type        ArtworkType
@@ -68,28 +74,43 @@ const (
 
 var reactions = []interface{}{Like, Perplexed}
 
-type ReactionData struct {
+type AddReactionRequest struct {
 	Reaction ReactionType
 }
 
-func (data ReactionData) Validate() error {
+func (data AddReactionRequest) Validate() error {
 	return validation.ValidateStruct(&data, validation.Field(&data.Reaction,
 		validation.Required,
 		validation.In(reactions...),
 	))
 }
 
+type ReactionResponse struct {
+	AuthorAlias string
+	AuthorName  string
+	Reaction    ReactionType
+	Date        ntime.NTime
+}
+
 // Comments
 
-type CommentData struct {
+type AddCommentData struct {
 	Comment string
 }
 
-func (data CommentData) Validate() error {
+func (data AddCommentData) Validate() error {
 	return validation.ValidateStruct(&data, validation.Field(&data.Comment,
 		validation.Required,
 		validation.Length(10, 3000),
 	))
+}
+
+type CommentResponse struct {
+	Id          string
+	AuthorAlias string
+	AuthorName  string
+	Comment     string
+	Date        ntime.NTime
 }
 
 // Profile Response DTOs

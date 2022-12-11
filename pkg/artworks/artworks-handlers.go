@@ -15,6 +15,7 @@ func RegisterHandlers(engine Engine, ar ArtworkRepository, aur auth.Repository) 
 	// artworks management
 	engine.Post("/artworks", addArtwork(ar), authenticated)
 	engine.Delete("/artworks/:artworkId", deleteArtwork(ar), authenticated)
+	engine.Get("/artworks/:artworkId", getArtwork(ar), authenticated)
 
 	// feedback
 	engine.Post("/artworks/:artworkId/comments", addComment(ar), authenticated)
@@ -74,6 +75,21 @@ func deleteArtwork(ar ArtworkRepository) http.HandlerFunc {
 	}
 }
 
+// getArtwork handles the authenticated GET "/artworks/:artworkId" route
+func getArtwork(ar ArtworkRepository) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+
+		switch response, err := ar.GetArtwork(GetParam(request, "artworkId"), auth.MustGetUser(request).Id); err {
+		case ErrNotFound:
+			JSON.NotFound(writer, "Artwork not found")
+		case nil:
+			JSON.Ok(writer, response)
+		default:
+			JSON.InternalServerError(writer, err)
+		}
+	}
+}
+
 // setReaction handles the authenticated PUT "/artworks/:artworkId/reactions/:alias" route
 func setReaction(ar ArtworkRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
@@ -86,7 +102,7 @@ func setReaction(ar ArtworkRepository) http.HandlerFunc {
 		}
 
 		// validate
-		data, err := JSON.DecodeValidate[ReactionData](request)
+		data, err := JSON.DecodeValidate[AddReactionRequest](request)
 		if err != nil {
 			JSON.ValidationError(writer, err)
 			return
@@ -136,7 +152,7 @@ func removeReaction(ar ArtworkRepository) http.HandlerFunc {
 func addComment(ar ArtworkRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
-		data, err := JSON.DecodeValidate[CommentData](request)
+		data, err := JSON.DecodeValidate[AddCommentData](request)
 		if err != nil {
 			JSON.ValidationError(writer, err)
 			return

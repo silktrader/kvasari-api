@@ -11,9 +11,11 @@ import (
 type ArtworkRepository interface {
 	AddArtwork(data AddArtworkData) (string, ntime.NTime, error)
 	DeleteArtwork(artworkId string, userId string) bool
-	SetReaction(userId string, artworkId string, date ntime.NTime, feedback ReactionData) error
+	GetArtwork(artworkId string, requesterId string) (*Artwork, error)
+
+	SetReaction(userId string, artworkId string, date ntime.NTime, feedback AddReactionRequest) error
 	RemoveReaction(userId string, artworkId string) error
-	AddComment(userId string, artworkId string, data CommentData) (id string, date ntime.NTime, err error)
+	AddComment(userId string, artworkId string, data AddCommentData) (id string, date ntime.NTime, err error)
 	DeleteComment(userId string, commentId string) error
 
 	GetProfileData(userId string) (ProfileData, error)
@@ -63,6 +65,99 @@ func (ar *artworkRepository) AddArtwork(data AddArtworkData) (string, ntime.NTim
 	return id, now, nil
 }
 
+func (ar *artworkRepository) GetArtwork(artworkId string, requesterId string) (*Artwork, error) {
+
+	// get artwork metadata, ensuring a banned user is denied access
+	var metadata = ArtworkMetadata{}
+	err := ar.Connection.QueryRow(`
+		SELECT alias, name, title, type, picture_url, description, year, location,
+		       artworks.created, added, artworks.updated
+		FROM artworks JOIN users ON artworks.author_id = users.id
+		WHERE artworks.id = ? AND NOT deleted
+		AND ? NOT IN (SELECT target FROM bans WHERE source = artworks.author_id)`,
+		artworkId, requesterId).Scan(
+		&metadata.AuthorAlias,
+		&metadata.AuthorName,
+		&metadata.Title,
+		&metadata.Type,
+		&metadata.PictureUrl,
+		&metadata.Description,
+		&metadata.Year,
+		&metadata.Location,
+		&metadata.Created,
+		&metadata.Added,
+		&metadata.Updated,
+	)
+
+	// short exit when essential metadata is missing, or when banned users attempt a read
+	if err != nil {
+		// no need to unwrap errors
+		if err == sql.ErrNoRows {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	// now fetch comments; at this point it's known the user isn't banned
+	var comments = make([]CommentResponse, 0)
+	commentRows, err := ar.Connection.Query(`
+		SELECT artwork_comments.id, alias, name, comment, date FROM artwork_comments
+		JOIN users ON artwork_comments.user = users.id
+		WHERE artwork = ?
+		ORDER BY date DESC
+		`, artworkId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer closeRows(commentRows)
+
+	for commentRows.Next() {
+		var comment CommentResponse
+		if err = commentRows.Scan(&comment.Id, &comment.AuthorAlias, &comment.AuthorName,
+			&comment.Comment, &comment.Date); err != nil {
+			return nil, err
+		}
+		comments = append(comments, comment)
+	}
+
+	if err = commentRows.Err(); err != nil {
+		return nil, err
+	}
+
+	// finally fetch reactions, beware of package clash with reactions array
+	var reacts = make([]ReactionResponse, 0)
+	reactionsRows, err := ar.Connection.Query(`
+		SELECT alias, name, reaction, date FROM artwork_feedback
+		JOIN users ON artwork_feedback.user = users.id
+		WHERE artwork = ?
+		ORDER BY date DESC
+		`, artworkId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer closeRows(reactionsRows)
+
+	for reactionsRows.Next() {
+		var reaction ReactionResponse
+		if err = reactionsRows.Scan(&reaction.AuthorAlias, &reaction.AuthorName,
+			&reaction.Reaction, &reaction.Date); err != nil {
+			return nil, err
+		}
+		reacts = append(reacts, reaction)
+	}
+
+	// return pointer to new instance, to facilitate non partial error returning
+	return &Artwork{
+		Metadata:  metadata,
+		Comments:  comments,
+		Reactions: reacts,
+	}, reactionsRows.Err()
+}
+
 // OwnsArtwork verifies whether a given artwork exists, wasn't deleted and is owned by the specified user
 func (ar *artworkRepository) OwnsArtwork(artworkId string, userId string) bool {
 	var exists = false
@@ -94,7 +189,7 @@ func (ar *artworkRepository) DeleteArtwork(artworkId string, userId string) bool
 	return true
 }
 
-func (ar *artworkRepository) SetReaction(userId string, artworkId string, date ntime.NTime, data ReactionData) error {
+func (ar *artworkRepository) SetReaction(userId string, artworkId string, date ntime.NTime, data AddReactionRequest) error {
 
 	res, err := ar.Connection.Exec(`
 		INSERT INTO artwork_feedback(artwork, user, reaction, date)
@@ -135,7 +230,7 @@ func (ar *artworkRepository) RemoveReaction(userId string, artworkId string) err
 	}
 }
 
-func (ar *artworkRepository) AddComment(userId string, artworkId string, data CommentData) (id string, date ntime.NTime, err error) {
+func (ar *artworkRepository) AddComment(userId string, artworkId string, data AddCommentData) (id string, date ntime.NTime, err error) {
 
 	id = rest.MustGetNewUUID()
 	date = ntime.Now()
