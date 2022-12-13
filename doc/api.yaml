@@ -906,7 +906,7 @@ paths:
                           $ref: "#/components/schemas/UserName"
                         Date:
                           $ref: "#/components/schemas/Timestamp"
-                  Followed:
+                  FollowedUsers:
                     type: array
                     minItems: 0
                     maxItems: 1000
