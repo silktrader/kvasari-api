@@ -68,94 +68,102 @@ func (ar *artworkRepository) AddArtwork(data AddArtworkData) (string, ntime.NTim
 func (ar *artworkRepository) GetArtwork(artworkId string, requesterId string) (*Artwork, error) {
 
 	// get artwork metadata, ensuring a banned user is denied access
-	var metadata = ArtworkMetadata{}
+	// with Postgres it'd make sense to update comments and reactions counts by way of a trigger
+	// SQLite blocks at every write though, so bursts of comments and reactions (writes) can be problematic
+	var artwork = Artwork{}
 	err := ar.Connection.QueryRow(`
 		SELECT alias, name, title, type, picture_url, description, year, location,
-		       artworks.created, added, artworks.updated
+		       artworks.created, added, artworks.updated,
+		       (SELECT count(*) FROM artwork_comments WHERE artwork = ?) as comments,
+		       (SELECT count(*) FROM artwork_feedback WHERE artwork = ?) as reactions
 		FROM artworks JOIN users ON artworks.author_id = users.id
 		WHERE artworks.id = ? AND NOT deleted
 		AND ? NOT IN (SELECT target FROM bans WHERE source = artworks.author_id)`,
-		artworkId, requesterId).Scan(
-		&metadata.AuthorAlias,
-		&metadata.AuthorName,
-		&metadata.Title,
-		&metadata.Type,
-		&metadata.PictureUrl,
-		&metadata.Description,
-		&metadata.Year,
-		&metadata.Location,
-		&metadata.Created,
-		&metadata.Added,
-		&metadata.Updated,
+		artworkId, artworkId, artworkId, requesterId).Scan(
+		&artwork.AuthorAlias,
+		&artwork.AuthorName,
+		&artwork.Title,
+		&artwork.Type,
+		&artwork.PictureUrl,
+		&artwork.Description,
+		&artwork.Year,
+		&artwork.Location,
+		&artwork.Created,
+		&artwork.Added,
+		&artwork.Updated,
+		&artwork.Comments,
+		&artwork.Reactions,
 	)
 
-	// short exit when essential metadata is missing, or when banned users attempt a read
-	if err != nil {
-		// no need to unwrap errors
-		if err == sql.ErrNoRows {
-			return nil, ErrNotFound
-		}
-		return nil, err
+	// no need to unwrap errors actually
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
 	}
+
+	return &artwork, err
+}
+
+func (ar *artworkRepository) getArtworkComments(artworkId string, requesterId string, since ntime.NTime) ([]CommentResponse, error) {
 
 	// now fetch comments; at this point it's known the user isn't banned
 	var comments = make([]CommentResponse, 0)
-	commentRows, err := ar.Connection.Query(`
+	rows, err := ar.Connection.Query(`
 		SELECT artwork_comments.id, alias, name, comment, date FROM artwork_comments
 		JOIN users ON artwork_comments.user = users.id
 		WHERE artwork = ?
+		AND ? NOT IN (SELECT target FROM bans WHERE source IN (SELECT author_id FROM artworks WHERE artworks.id = ?))
 		ORDER BY date DESC
-		`, artworkId)
+		`, artworkId, requesterId, artworkId)
 
 	if err != nil {
 		return nil, err
 	}
 
-	defer closeRows(commentRows)
+	defer closeRows(rows)
 
-	for commentRows.Next() {
+	for rows.Next() {
 		var comment CommentResponse
-		if err = commentRows.Scan(&comment.Id, &comment.AuthorAlias, &comment.AuthorName,
+		if err = rows.Scan(&comment.Id, &comment.AuthorAlias, &comment.AuthorName,
 			&comment.Comment, &comment.Date); err != nil {
-			return nil, err
+			return comments, err
 		}
 		comments = append(comments, comment)
 	}
 
-	if err = commentRows.Err(); err != nil {
-		return nil, err
-	}
+	// always returning a collection, no matter whether the artwork exists or the requester is banned
+	return comments, rows.Err()
+}
 
-	// finally fetch reactions, beware of package clash with reactions array
-	var reacts = make([]ReactionResponse, 0)
-	reactionsRows, err := ar.Connection.Query(`
+func (ar *artworkRepository) getArtworkReactions(artworkId string, requesterId string, since ntime.NTime) ([]ReactionResponse, error) {
+
+	// fetch reactions, beware of package clash with reactions array
+	var reactionResponses = make([]ReactionResponse, 0)
+	rows, err := ar.Connection.Query(`
 		SELECT alias, name, reaction, date FROM artwork_feedback
 		JOIN users ON artwork_feedback.user = users.id
 		WHERE artwork = ?
+		AND ? NOT IN (SELECT target FROM bans WHERE source IN (SELECT author_id FROM artworks WHERE artworks.id = ?))
 		ORDER BY date DESC
-		`, artworkId)
+		`, artworkId, requesterId, artworkId)
 
 	if err != nil {
 		return nil, err
 	}
 
-	defer closeRows(reactionsRows)
+	defer closeRows(rows)
 
-	for reactionsRows.Next() {
+	// return partial results in case of errors
+	for rows.Next() {
 		var reaction ReactionResponse
-		if err = reactionsRows.Scan(&reaction.AuthorAlias, &reaction.AuthorName,
+		if err = rows.Scan(&reaction.AuthorAlias, &reaction.AuthorName,
 			&reaction.Reaction, &reaction.Date); err != nil {
-			return nil, err
+			return reactionResponses, err
 		}
-		reacts = append(reacts, reaction)
+		reactionResponses = append(reactionResponses, reaction)
 	}
 
-	// return pointer to new instance, to facilitate non partial error returning
-	return &Artwork{
-		Metadata:  metadata,
-		Comments:  comments,
-		Reactions: reacts,
-	}, reactionsRows.Err()
+	return reactionResponses, rows.Err()
+
 }
 
 // OwnsArtwork verifies whether a given artwork exists, wasn't deleted and is owned by the specified user

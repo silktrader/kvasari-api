@@ -23,12 +23,6 @@ const (
 var artworkTypes = []interface{}{Painting, Drawing, Sculpture, Architecture, Photograph}
 
 type Artwork struct {
-	Metadata  ArtworkMetadata
-	Comments  []CommentResponse
-	Reactions []ReactionResponse
-}
-
-type ArtworkMetadata struct {
 	AuthorName  string
 	AuthorAlias string
 	Title       string
@@ -40,6 +34,8 @@ type ArtworkMetadata struct {
 	Created     ntime.NTime
 	Added       ntime.NTime
 	Updated     ntime.NTime
+	Comments    int
+	Reactions   int
 }
 
 type AddArtworkData struct {
@@ -119,7 +115,7 @@ type ProfileData struct {
 	TotalArtworks int
 	Artworks      []ArtworkProfilePreview
 	Followers     []users.RelationData
-	Followed      []users.RelationData
+	FollowedUsers []users.RelationData
 }
 
 type ArtworkProfilePreview struct {

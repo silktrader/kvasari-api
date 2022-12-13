@@ -75,7 +75,7 @@ func deleteArtwork(ar ArtworkRepository) http.HandlerFunc {
 	}
 }
 
-// getArtwork handles the authenticated GET "/artworks/:artworkId" route
+// getArtwork handles the authenticated GET "/artworks/:artworkId" route and provides an artwork's metadata
 func getArtwork(ar ArtworkRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
