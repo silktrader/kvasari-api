@@ -434,6 +434,8 @@ paths:
           description: No Content
         "400":
           $ref: "#/components/responses/TimestampedMessage"
+        "401":
+          description: Unauthorized
         "403":
           description: Forbidden
         "500":
@@ -462,6 +464,8 @@ paths:
           description: No Content
         "400":
           $ref: "#/components/responses/TimestampedMessage"
+        "401":
+          description: Unauthorized
         "403":
           description: Forbidden
         "500":
@@ -490,6 +494,8 @@ paths:
                       Alias: waterhouse
                       Name: John William Waterhouse
                       Banned: "2022-12-02T19:13:57Z"
+        "401":
+          description: Unauthorized
         "403":
           description: Forbidden
         "500":
@@ -523,6 +529,8 @@ paths:
                 Banned: "2022-11-27T19:55:34Z"
         "400":
           $ref: "#/components/responses/TimestampedMessage"
+        "401":
+          description: Unauthorized
         "403":
           description: Forbidden
         "500":
@@ -542,6 +550,8 @@ paths:
           description: No Content
         "400":
           $ref: "#/components/responses/TimestampedMessage"
+        "401":
+          description: Unauthorized
         "403":
           $ref: "#/components/responses/TimestampedMessage"
         "500":
@@ -573,6 +583,8 @@ paths:
                       Followed: "2022-11-27T19:55:34Z"
         "400":
           $ref: "#/components/responses/TimestampedMessage"
+        "401":
+          description: Unauthorized
         "500":
           $ref: "#/components/responses/TimestampedError"
       operationId: getFollowers
@@ -612,6 +624,8 @@ paths:
                 Followed: "2022-11-27T19:55:34Z"
         "400":
           $ref: "#/components/responses/TimestampedMessage"
+        "401":
+          description: Unauthorized
         "403":
           description: Forbidden
         "500":
@@ -631,6 +645,8 @@ paths:
           description: No Content
         "400":
           $ref: "#/components/responses/TimestampedMessage"
+        "401":
+          description: Unauthorized
         "403":
           description: Forbidden
         "500":
@@ -676,6 +692,8 @@ paths:
                 Date: "2022-12-04T09:53:56Z"
         "400":
           $ref: "#/components/responses/TimestampedMessage"
+        "401":
+          description: Unauthorized
         "500":
           $ref: "#/components/responses/TimestampedError"
       tags:
@@ -691,6 +709,8 @@ paths:
       responses:
         "204":
           description: Artwork Deleted
+        "401":
+          description: Unauthorized
         "404":
           $ref: "#/components/responses/TimestampedMessage"
         "500":
@@ -737,6 +757,8 @@ paths:
                 Date: "2022-12-04T09:53:56Z"
         "400":
           $ref: "#/components/responses/TimestampedMessage"
+        "401":
+          description: Unauthorized
         "403":
           description: Forbidden
         "500":
@@ -756,6 +778,8 @@ paths:
       responses:
         "204":
           description: No Content
+        "401":
+          description: Unauthorized
         "404":
           description: Not Found
         "500":
@@ -834,6 +858,8 @@ paths:
                 Updated: "2022-12-02T22:49:54Z"
         "400":
           $ref: "#/components/responses/TimestampedMessage"
+        "401":
+          description: Unauthorized
         "403":
           description: Forbidden
         "500":
@@ -853,6 +879,8 @@ paths:
           description: Deleted
         "400":
           $ref: "#/components/responses/TimestampedMessage"
+        "401":
+          description: Unauthorized
       operationId: deletePhoto
       description: "Removes a previously posted artwork, ensuring the acting user has appropriate rights."
     parameters:
@@ -931,7 +959,7 @@ paths:
                   - TotalArtworks
                   - Artworks
                   - Followers
-                  - Followed
+                  - FollowedUsers
               examples:
                 common:
                   value:
@@ -959,6 +987,8 @@ paths:
                         Alias: gklimt
                         Name: Gustav Klimt
                         Date: "2022-11-27T19:39:51Z"
+        "401":
+          description: Unauthorized
         "403":
           description: Forbidden
         "500":
@@ -1097,6 +1127,8 @@ paths:
                     DeletedIds: []
         "400":
           $ref: "#/components/responses/TimestampedMessage"
+        "401":
+          description: Unauthorized
         "403":
           description: Forbidden
         "500":
