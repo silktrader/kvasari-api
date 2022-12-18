@@ -1,6 +1,7 @@
 package users
 
 import (
+	"errors"
 	"github.com/silktrader/kvasari/pkg/auth"
 	JSON "github.com/silktrader/kvasari/pkg/json-utilities"
 	"github.com/silktrader/kvasari/pkg/rest"
@@ -56,14 +57,12 @@ func registerUser(ur UserRepository) http.HandlerFunc {
 			return
 		}
 
-		newUser, err := ur.Register(data)
-		switch err {
-		case nil:
+		if newUser, e := ur.Register(data); e == nil {
 			JSON.Created(writer, newUser)
-		case ErrDupUser:
+		} else if errors.Is(e, ErrDupUser) {
 			JSON.BadRequestWithMessage(writer, "Email or alias already registered")
-		default:
-			JSON.InternalServerError(writer, err)
+		} else {
+			JSON.InternalServerError(writer, e)
 		}
 	}
 }
@@ -86,12 +85,11 @@ func updateName(ur UserRepository) http.HandlerFunc {
 			return
 		}
 
-		if err = ur.UpdateName(user.Id, data.Name); err != nil {
+		if err = ur.UpdateName(user.Id, data.Name); err == nil {
+			JSON.NoContent(writer)
+		} else {
 			JSON.InternalServerError(writer, err)
-			return
 		}
-
-		JSON.NoContent(writer)
 	}
 }
 
@@ -113,13 +111,11 @@ func updateAlias(ur UserRepository) http.HandlerFunc {
 			return
 		}
 
-		err = ur.UpdateAlias(user.Id, data.Alias)
-		switch err {
-		case nil:
+		if err = ur.UpdateAlias(user.Id, data.Alias); err == nil {
 			JSON.NoContent(writer)
-		case ErrAliasTaken:
+		} else if errors.Is(err, ErrAliasTaken) {
 			JSON.BadRequestWithMessage(writer, "Alias already taken")
-		default:
+		} else {
 			JSON.InternalServerError(writer, err)
 		}
 	}

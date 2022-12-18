@@ -1,6 +1,7 @@
 package users
 
 import (
+	"errors"
 	"github.com/mattn/go-sqlite3"
 	"github.com/silktrader/kvasari/pkg/ntime"
 )
@@ -14,7 +15,8 @@ func (ur *userRepository) Follow(followerId string, targetAlias string, date nti
 	)
 
 	// detects whether the requester is already among the target's followers
-	if sqliteErr, ok := err.(sqlite3.Error); ok {
+	var sqliteErr sqlite3.Error
+	if errors.As(err, &sqliteErr) {
 		if sqliteErr.ExtendedCode == sqlite3.ErrConstraintPrimaryKey {
 			return ErrDupFollower
 		}
@@ -65,7 +67,9 @@ func (ur *userRepository) Ban(sourceId string, targetAlias string, date ntime.NT
 	}
 
 	// rolling back after a transaction commit will result in a safe NOP
-	defer tx.Rollback()
+	defer func() {
+		_ = tx.Rollback()
+	}()
 
 	// the INSERT must follow the DELETE statement, so to return a relevant `RowsAffected` count
 	res, err := tx.Exec(`

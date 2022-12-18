@@ -1,7 +1,7 @@
 package rest
 
 import (
-	"errors"
+	"fmt"
 	"github.com/gofrs/uuid"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
@@ -17,7 +17,7 @@ func New(cfg Config) (engine Engine, err error) {
 
 	// assign a logger or fail
 	if cfg.Logger == nil {
-		return engine, errors.New("logger is required")
+		return engine, fmt.Errorf("logger is required")
 	}
 	engine.baseLogger = cfg.Logger
 

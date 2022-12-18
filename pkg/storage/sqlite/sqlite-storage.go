@@ -13,8 +13,9 @@ type Storage struct {
 	Connection *sql.DB
 }
 
-// tk this seems unorthodox; what if there are two Initialise calls? How to implement singletons? Nil checks?
+// Initialise sets up a SQLite database connection
 // create struct instead to be returned?
+// tk this seems unorthodox; what if there are two Initialise calls? How to implement singletons? Nil checks?
 func Initialise(logger *logrus.Logger, path string) (connection *sql.DB, err error) {
 	// tk pass logger interface
 

@@ -1,6 +1,7 @@
 package artworks
 
 import (
+	"errors"
 	"github.com/silktrader/kvasari/pkg/auth"
 	JSON "github.com/silktrader/kvasari/pkg/json-utilities"
 	"github.com/silktrader/kvasari/pkg/ntime"
@@ -83,10 +84,10 @@ func deleteArtwork(ar ArtworkRepository) http.HandlerFunc {
 func getArtwork(ar ArtworkRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
-		switch response, err := ar.GetArtwork(GetParam(request, "artworkId"), auth.MustGetUser(request).Id); err {
-		case ErrNotFound:
+		switch response, err := ar.GetArtwork(GetParam(request, "artworkId"), auth.MustGetUser(request).Id); {
+		case errors.Is(err, ErrNotFound):
 			JSON.NotFound(writer, "Artwork not found")
-		case nil:
+		case err == nil:
 			JSON.Ok(writer, response)
 		default:
 			JSON.InternalServerError(writer, err)
@@ -113,18 +114,16 @@ func setReaction(ar ArtworkRepository) http.HandlerFunc {
 		}
 
 		var date = ntime.Now()
-		err = ar.SetReaction(user.Id, GetParam(request, "artworkId"), date, data)
 
 		// it's debatable whether 201 should be returned on first setting the reaction
-		switch err {
-		case nil:
+		if err = ar.SetReaction(user.Id, GetParam(request, "artworkId"), date, data); err == nil {
 			JSON.Ok(writer, struct {
 				Status string
 				Date   ntime.NTime
 			}{"changed", date})
-		case ErrNotModified:
+		} else if errors.Is(err, ErrNotModified) {
 			JSON.Ok(writer, struct{ Status string }{"unchanged"})
-		default:
+		} else {
 			JSON.InternalServerError(writer, err)
 		}
 	}
@@ -141,12 +140,11 @@ func removeReaction(ar ArtworkRepository) http.HandlerFunc {
 			return
 		}
 
-		switch err := ar.RemoveReaction(user.Id, GetParam(request, "artworkId")); err {
-		case nil:
+		if err := ar.RemoveReaction(user.Id, GetParam(request, "artworkId")); err == nil {
 			JSON.NoContent(writer)
-		case ErrNotFound:
+		} else if errors.Is(err, ErrNotFound) {
 			JSON.NotFound(writer, "Reaction not found, or unauthorised action")
-		default:
+		} else {
 			JSON.InternalServerError(writer, err)
 		}
 	}
@@ -184,12 +182,11 @@ func addComment(ar ArtworkRepository) http.HandlerFunc {
 func deleteComment(ar ArtworkRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
-		switch err := ar.DeleteComment(auth.MustGetUser(request).Id, GetParam(request, "commentId")); err {
-		case nil:
+		if err := ar.DeleteComment(auth.MustGetUser(request).Id, GetParam(request, "commentId")); err == nil {
 			JSON.NoContent(writer)
-		case ErrNotFound:
+		} else if errors.Is(err, ErrNotFound) {
 			JSON.NotFound(writer, "Comment not found, or unauthorised action")
-		default:
+		} else {
 			JSON.InternalServerError(writer, err)
 		}
 	}
@@ -199,26 +196,22 @@ func deleteComment(ar ArtworkRepository) http.HandlerFunc {
 func getArtworkComments(ar ArtworkRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
-		comments, err := ar.GetArtworkComments(GetParam(request, "artworkId"), auth.MustGetUser(request).Id)
-		if err != nil {
+		if comments, err := ar.GetArtworkComments(GetParam(request, "artworkId"), auth.MustGetUser(request).Id); err == nil {
+			JSON.Ok(writer, comments)
+		} else {
 			JSON.InternalServerError(writer, err)
-			return
 		}
-
-		JSON.Ok(writer, comments)
 	}
 }
 
 func getArtworkReactions(ar ArtworkRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
-		reacts, err := ar.GetArtworkReactions(GetParam(request, "artworkId"), auth.MustGetUser(request).Id)
-		if err != nil {
+		if reacts, err := ar.GetArtworkReactions(GetParam(request, "artworkId"), auth.MustGetUser(request).Id); err == nil {
+			JSON.Ok(writer, reacts)
+		} else {
 			JSON.InternalServerError(writer, err)
-			return
 		}
-
-		JSON.Ok(writer, reacts)
 	}
 }
 
@@ -233,13 +226,11 @@ func getProfile(ar ArtworkRepository) http.HandlerFunc {
 			return
 		}
 
-		profile, err := ar.GetProfileData(user.Id)
-		if err != nil {
-			JSON.InternalServerError(writer, err) // tk disambiguate
-			return
+		if profile, err := ar.GetProfileData(user.Id); err == nil {
+			JSON.Ok(writer, profile)
+		} else {
+			JSON.InternalServerError(writer, err) // could disambiguate errors given the elaborate query
 		}
-
-		JSON.Ok(writer, profile)
 	}
 }
 

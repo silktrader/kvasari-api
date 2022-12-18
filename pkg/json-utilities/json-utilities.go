@@ -48,10 +48,6 @@ func BadRequest(writer http.ResponseWriter) {
 	writer.WriteHeader(http.StatusBadRequest)
 }
 
-func Unauthorised(writer http.ResponseWriter) {
-	writer.WriteHeader(http.StatusUnauthorized)
-}
-
 func Forbidden(writer http.ResponseWriter) {
 	writer.WriteHeader(http.StatusForbidden)
 }
@@ -71,10 +67,10 @@ func ValidationError(writer http.ResponseWriter, err error) {
 	_ = json.NewEncoder(writer).Encode(newHttpError(err))
 }
 
-func SeeOther(writer http.ResponseWriter, location string) {
-	writer.Header().Set("Location", location)
-	writer.WriteHeader(http.StatusSeeOther)
-}
+//func SeeOther(writer http.ResponseWriter, location string) {
+//	writer.Header().Set("Location", location)
+//	writer.WriteHeader(http.StatusSeeOther)
+//}
 
 func encodeJSON(writer http.ResponseWriter, status int, payload interface{}) {
 	writer.Header().Set("Content-Type", "application/json")

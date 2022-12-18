@@ -1,6 +1,7 @@
 package users
 
 import (
+	"errors"
 	"fmt"
 	"github.com/silktrader/kvasari/pkg/auth"
 	JSON "github.com/silktrader/kvasari/pkg/json-utilities"
@@ -61,17 +62,16 @@ func followUser(ur UserRepository) http.HandlerFunc {
 		// - the follower already follows the target (ErrDupFollower)
 		// - no user matches the target alias (ErrNotFound)
 		// - the target is banning the requester (a debatable ErrNotFound)
-		switch err = ur.Follow(follower.Id, data.TargetAlias, date); err {
-		case nil:
+		if err = ur.Follow(follower.Id, data.TargetAlias, date); err == nil {
 			JSON.Created(writer, struct {
 				Alias    string
 				Followed ntime.NTime
 			}{data.TargetAlias, date})
-		case ErrDupFollower:
+		} else if errors.Is(err, ErrDupFollower) {
 			JSON.BadRequestWithMessage(writer, fmt.Sprintf("You are already following user %s", data.TargetAlias))
-		case ErrNotFound:
+		} else if errors.Is(err, ErrNotFound) {
 			JSON.NotFound(writer, fmt.Sprintf("User %s not found", data.TargetAlias))
-		default:
+		} else {
 			JSON.InternalServerError(writer, err)
 		}
 	}
@@ -101,12 +101,11 @@ func unfollowUser(ur UserRepository) http.HandlerFunc {
 			return
 		}
 
-		switch err := ur.Unfollow(follower.Id, targetAlias); err {
-		case nil:
+		if err := ur.Unfollow(follower.Id, targetAlias); err == nil {
 			JSON.NoContent(writer)
-		case ErrNotFound:
+		} else if errors.Is(err, ErrNotFound) {
 			JSON.BadRequestWithMessage(writer, fmt.Sprintf("User %s isn't followed", targetAlias))
-		default:
+		} else {
 			JSON.InternalServerError(writer, err)
 		}
 	}
@@ -138,15 +137,14 @@ func banUser(ur UserRepository) http.HandlerFunc {
 
 		// attempt to ban, which will also result in targets following the source to stop doing so
 		var date = ntime.Now()
-		switch err = ur.Ban(source.Id, data.TargetAlias, date); err {
-		case nil:
+		if err = ur.Ban(source.Id, data.TargetAlias, date); err == nil {
 			JSON.Created(writer, struct {
 				Alias  string
 				Banned ntime.NTime
 			}{data.TargetAlias, date})
-		case ErrDupBan:
+		} else if errors.Is(err, ErrDupBan) {
 			JSON.BadRequestWithMessage(writer, fmt.Sprintf("User %s is already banned", data.TargetAlias))
-		default:
+		} else {
 			JSON.InternalServerError(writer, err)
 		}
 	}
@@ -176,12 +174,11 @@ func unbanUser(ur UserRepository) http.HandlerFunc {
 			return
 		}
 
-		switch err := ur.Unban(source.Id, targetAlias); err {
-		case nil:
+		if err := ur.Unban(source.Id, targetAlias); err == nil {
 			JSON.NoContent(writer)
-		case ErrNotFound:
+		} else if errors.Is(err, ErrNotFound) {
 			JSON.BadRequestWithMessage(writer, fmt.Sprintf("User %s isn't banned", targetAlias))
-		default:
+		} else {
 			JSON.InternalServerError(writer, err)
 		}
 	}
@@ -198,12 +195,11 @@ func getBans(ur UserRepository) http.HandlerFunc {
 			return
 		}
 
-		banned, err := ur.GetBans(user.Id)
-		if err != nil {
+		if banned, err := ur.GetBans(user.Id); err == nil {
+			JSON.Ok(writer, banned)
+		} else {
 			JSON.InternalServerError(writer, err)
-			return
 		}
 
-		JSON.Ok(writer, banned)
 	}
 }
