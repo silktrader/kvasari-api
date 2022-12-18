@@ -13,10 +13,13 @@ type ArtworkRepository interface {
 	DeleteArtwork(artworkId string, userId string) bool
 	GetArtwork(artworkId string, requesterId string) (*Artwork, error)
 
-	SetReaction(userId string, artworkId string, date ntime.NTime, feedback AddReactionRequest) error
-	RemoveReaction(userId string, artworkId string) error
 	AddComment(userId string, artworkId string, data AddCommentData) (id string, date ntime.NTime, err error)
 	DeleteComment(userId string, commentId string) error
+	GetArtworkComments(artworkId string, requesterId string) ([]CommentResponse, error)
+
+	SetReaction(userId string, artworkId string, date ntime.NTime, feedback AddReactionRequest) error
+	RemoveReaction(userId string, artworkId string) error
+	GetArtworkReactions(artworkId string, requesterId string) ([]ReactionResponse, error)
 
 	GetProfileData(userId string) (ProfileData, error)
 	GetUserArtworks(userId string, pageSize int, page int) ([]ArtworkProfilePreview, int, error)
@@ -103,7 +106,7 @@ func (ar *artworkRepository) GetArtwork(artworkId string, requesterId string) (*
 	return &artwork, err
 }
 
-func (ar *artworkRepository) getArtworkComments(artworkId string, requesterId string, since ntime.NTime) ([]CommentResponse, error) {
+func (ar *artworkRepository) GetArtworkComments(artworkId string, requesterId string) ([]CommentResponse, error) {
 
 	// now fetch comments; at this point it's known the user isn't banned
 	var comments = make([]CommentResponse, 0)
@@ -134,7 +137,7 @@ func (ar *artworkRepository) getArtworkComments(artworkId string, requesterId st
 	return comments, rows.Err()
 }
 
-func (ar *artworkRepository) getArtworkReactions(artworkId string, requesterId string, since ntime.NTime) ([]ReactionResponse, error) {
+func (ar *artworkRepository) GetArtworkReactions(artworkId string, requesterId string) ([]ReactionResponse, error) {
 
 	// fetch reactions, beware of package clash with reactions array
 	var reactionResponses = make([]ReactionResponse, 0)

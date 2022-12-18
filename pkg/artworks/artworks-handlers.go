@@ -17,11 +17,15 @@ func RegisterHandlers(engine Engine, ar ArtworkRepository, aur auth.Repository) 
 	engine.Delete("/artworks/:artworkId", deleteArtwork(ar), authenticated)
 	engine.Get("/artworks/:artworkId", getArtwork(ar), authenticated)
 
-	// feedback
+	// comments
 	engine.Post("/artworks/:artworkId/comments", addComment(ar), authenticated)
 	engine.Delete("/artworks/:artworkId/comments/:commentId", deleteComment(ar), authenticated)
+	engine.Get("/artworks/:artworkId/comments", getArtworkComments(ar), authenticated)
+
+	// reactions
 	engine.Put("/artworks/:artworkId/reactions/:alias", setReaction(ar), authenticated)
 	engine.Delete("/artworks/:artworkId/reactions/:alias", removeReaction(ar), authenticated)
+	engine.Get("/artworks/:artworkId/reactions", getArtworkReactions(ar), authenticated)
 
 	// user specific aggregates
 	engine.Get("/users/:alias/profile", getProfile(ar), authenticated)
@@ -188,6 +192,33 @@ func deleteComment(ar ArtworkRepository) http.HandlerFunc {
 		default:
 			JSON.InternalServerError(writer, err)
 		}
+	}
+}
+
+// getArtworkComments handles the authenticated GET "/artworks/:artworkId/comments" route
+func getArtworkComments(ar ArtworkRepository) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+
+		comments, err := ar.GetArtworkComments(GetParam(request, "artworkId"), auth.MustGetUser(request).Id)
+		if err != nil {
+			JSON.InternalServerError(writer, err)
+			return
+		}
+
+		JSON.Ok(writer, comments)
+	}
+}
+
+func getArtworkReactions(ar ArtworkRepository) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+
+		reacts, err := ar.GetArtworkReactions(GetParam(request, "artworkId"), auth.MustGetUser(request).Id)
+		if err != nil {
+			JSON.InternalServerError(writer, err)
+			return
+		}
+
+		JSON.Ok(writer, reacts)
 	}
 }
 
