@@ -311,6 +311,10 @@ components:
       properties:
         Id:
           $ref: "#/components/schemas/UUID"
+        Name:
+          $ref: "#/components/schemas/UserName"
+        Alias:
+          $ref: "#/components/schemas/UserAlias"
         Status:
           description: A status describing the operation, temporarily limited to "authenticated".
           type: string
@@ -1003,7 +1007,7 @@ paths:
               schema:
                 type: object
                 description: |-
-                  Artworks pictures and metadata used to populate a user's personal stream. 
+                  Artworks pictures and metadata used to populate a user's personal stream.
                   The `Artworks` collection comprises the latest twelve items, in reverse chronological order, added by followed peers, starting from the date specified in the `since` query parameter.
                   `NewArtworks` contains those items that were added since the `latest` query parameter.
                   `RemovedIds` marks artworks that were since deleted, and that may need to be scrapped from a collection built on previous responses.

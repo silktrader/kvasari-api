@@ -146,11 +146,16 @@ func login(ur UserRepository) http.HandlerFunc {
 		}
 
 		// one would set refresh and access tokens in the response but for the moment a status suffices
+		// return basic user details for the front-end's consumption
 		JSON.Created(writer, struct {
 			Id     string
+			Name   string
+			Alias  string
 			Status string
 		}{
 			Id:     user.Id,
+			Name:   user.Name,
+			Alias:  user.Alias,
 			Status: "authenticated",
 		})
 	}
