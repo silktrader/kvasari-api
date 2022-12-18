@@ -91,6 +91,11 @@ func (e *Engine) Delete(path string, handlerFunc http.HandlerFunc, middleware ..
 	e.Handle(http.MethodDelete, path, handlerFunc, middleware...)
 }
 
+// ServeFiles is a mere wrapper around Router's ServeFiles()
+func (e *Engine) ServeFiles(path string, root http.FileSystem) {
+	e.router.ServeFiles(path, root)
+}
+
 // helper functions
 
 func GetParam(request *http.Request, key string) string {

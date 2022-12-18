@@ -120,6 +120,8 @@ func run() error {
 	users.RegisterHandlers(e, usersRepository, authRepository)
 	artworks.RegisterHandlers(e, artworksRepository, authRepository)
 
+	e.ServeFiles("/static/*filepath", http.Dir("static"))
+
 	handler, err = registerWebUI(handler)
 	if err != nil {
 		logger.WithError(err).Error("error registering web UI handler")
