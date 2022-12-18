@@ -9,16 +9,14 @@ import (
 	"net/http"
 )
 
-// tk rewrite
-// getFollowers handles the unauthenticated "/users/:alias/followers" route
+// getFollowers handles the unauthenticated "/users/:alias/followers" route, currently used for debugging purposes.
 func getFollowers(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
 		var targetAlias = rest.GetParam(request, "alias")
 
 		// check whether the user exists for gracious feedback
-		var targetExists = ur.ExistsUserAlias(targetAlias)
-		if !targetExists {
+		if _, err := ur.GetUserByAlias(targetAlias); err != nil {
 			JSON.BadRequestWithMessage(writer, fmt.Sprintf("User %s doesn't exist", targetAlias))
 			return
 		}

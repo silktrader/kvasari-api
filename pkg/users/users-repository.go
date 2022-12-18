@@ -13,8 +13,6 @@ import (
 type UserRepository interface {
 	GetAll() ([]User, error)
 	Register(data AddUserData) (*User, error)
-	ExistsUserId(id string) bool
-	ExistsUserAlias(alias string) bool
 	GetUserById(id string) (user User, err error)
 	GetUserByAlias(alias string) (user User, err error)
 	UpdateName(userId string, newName string) error
@@ -103,46 +101,29 @@ func (ur *userRepository) GetFollowers(userAlias string) ([]Follower, error) {
 	return followers, nil
 }
 
-func (ur *userRepository) ExistsUserId(id string) (exists bool) {
-	// will return false in the absence of positive results
-	err := ur.Connection.QueryRow("SELECT TRUE FROM users WHERE id = ?", id).Scan(&exists)
-	return err == nil && exists
-}
-
-func (ur *userRepository) ExistsUserAlias(alias string) (exists bool) {
-	// will return false in the absence of positive results
-	err := ur.Connection.QueryRow("SELECT TRUE FROM users WHERE alias = ?", alias).Scan(&exists)
-	return err == nil && exists
-}
-
 // GetUserByAlias either returns a user matching the alias, or an error (along with an ignorable empty struct).
 func (ur *userRepository) GetUserByAlias(alias string) (user User, err error) {
-	err = ur.Connection.QueryRow("SELECT id, name, email, created, updated FROM users WHERE alias = ?", alias).Scan(
+	err = ur.Connection.QueryRow("SELECT id, name, alias, created, updated FROM users WHERE alias = ?", alias).Scan(
 		&user.Id,
 		&user.Name,
 		&user.Alias,
 		&user.Created,
 		&user.Updated,
 	)
-	if err != nil {
-		return User{}, err
-	}
-	return user, nil
+	return user, err
 }
 
 // GetUserById either returns a user matching the id, or an error (along with an ignorable empty struct).
 func (ur *userRepository) GetUserById(id string) (user User, err error) {
-	// if the query selects no rows, *Row's `Scan` will return ErrNoRows
-	if err = ur.Connection.QueryRow("SELECT id, name, email, created, updated FROM users WHERE id = ?", id).Scan(
+	// if the query selects no rows, `Scan` will return ErrNoRows
+	err = ur.Connection.QueryRow("SELECT id, name, alias, created, updated FROM users WHERE id = ?", id).Scan(
 		&user.Id,
 		&user.Name,
 		&user.Alias,
 		&user.Created,
 		&user.Updated,
-	); err != nil {
-		return user, err
-	}
-	return user, nil
+	)
+	return user, err
 }
 
 func (ur *userRepository) Register(data AddUserData) (*User, error) {
