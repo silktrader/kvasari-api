@@ -982,7 +982,7 @@ paths:
                         Alias: gklimt
                         Name: Gustav Klimt
                         Date: "2022-11-27T19:55:34Z"
-                    Followed:
+                    FollowedUsers:
                       - Id: 637c8e48-6e0b-4b6c-acc4-a0ff293dcac2
                         Alias: gklimt
                         Name: Gustav Klimt

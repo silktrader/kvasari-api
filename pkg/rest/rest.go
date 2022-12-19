@@ -1,7 +1,7 @@
 package rest
 
 import (
-	"fmt"
+	"errors"
 	"github.com/gofrs/uuid"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
@@ -13,11 +13,11 @@ type Config struct {
 	Logger logrus.FieldLogger
 }
 
-func New(cfg Config) (engine Engine, err error) {
+var errLoggerRequired = errors.New("logger is required")
 
-	// assign a logger or fail
+func New(cfg Config) (engine Engine, err error) { // assign a logger or fail
 	if cfg.Logger == nil {
-		return engine, fmt.Errorf("logger is required")
+		return engine, errLoggerRequired
 	}
 	engine.baseLogger = cfg.Logger
 
@@ -52,9 +52,7 @@ func (e *Engine) Handler() http.Handler {
 
 // Handle registers the path and method to the given handler. Also applies the middleware to the Handler
 // Handle calls the base router, to register the method, path and handler.
-func (e *Engine) Handle(method string, path string, handler http.Handler, middleware ...func(http.Handler) http.Handler) {
-
-	// first apply the router's globally defined middleware
+func (e *Engine) Handle(method string, path string, handler http.Handler, middleware ...func(http.Handler) http.Handler) { // first apply the router's globally defined middleware
 	for _, mw := range e.middleware {
 		handler = mw(handler)
 	}

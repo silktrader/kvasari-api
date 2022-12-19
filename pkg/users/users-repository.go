@@ -136,7 +136,8 @@ func (ur *userRepository) Register(data AddUserData) (*User, error) {
 		VALUES(?, ?, ?, ?, ?, ?, ?)`,
 		id, data.Name, data.Alias, data.Email, data.Password, now, now)
 
-	if sqliteErr, ok := err.(sqlite3.Error); ok {
+	var sqliteErr sqlite3.Error
+	if errors.As(err, &sqliteErr) {
 		if sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
 			return nil, ErrDupUser
 		}
@@ -147,6 +148,7 @@ func (ur *userRepository) Register(data AddUserData) (*User, error) {
 		return nil, fmt.Errorf("couldn't add user %q: %w", data.Alias, err)
 	}
 
+	// tk improve handling by returning appropriate error
 	rows, err := result.RowsAffected()
 	if rows < 1 || err != nil {
 		return nil, err
@@ -175,11 +177,13 @@ func (ur *userRepository) UpdateAlias(userId string, newAlias string) error {
 	_, err := ur.Connection.Exec("UPDATE users SET alias = ?, updated = ? WHERE id = ?", newAlias, time.Now(), userId)
 
 	// detect alias uniqueness violations which signal that the alias is taken
-	if sqliteErr, ok := err.(sqlite3.Error); ok {
+	var sqliteErr sqlite3.Error
+	if errors.As(err, &sqliteErr) {
 		if sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
 			return ErrAliasTaken
 		}
 	}
+
 	return err
 }
 

@@ -77,8 +77,9 @@ func (ur *userRepository) Ban(sourceId string, targetAlias string, date ntime.NT
 		INSERT INTO bans (source, date, target) SELECT ?, ?, id FROM users WHERE alias = ?;
 	`, targetAlias, sourceId, sourceId, date, targetAlias)
 
-	// detects whether the requester is already among the target's followers
-	if sqliteErr, ok := err.(sqlite3.Error); ok {
+	// detects whether the requester is already among the target's bans
+	var sqliteErr sqlite3.Error
+	if errors.As(err, &sqliteErr) {
 		if sqliteErr.ExtendedCode == sqlite3.ErrConstraintPrimaryKey {
 			return ErrDupBan
 		}

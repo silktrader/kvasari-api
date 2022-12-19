@@ -51,9 +51,7 @@ func addArtwork(ar ArtworkRepository) http.HandlerFunc {
 		}
 
 		// return a JSON with the artwork's ID and time of creation
-		id, updated, err := ar.AddArtwork(data)
-		switch err {
-		case nil:
+		if id, updated, e := ar.AddArtwork(data); e == nil {
 			JSON.Created(writer, struct {
 				Id      string
 				Updated ntime.NTime
@@ -61,8 +59,8 @@ func addArtwork(ar ArtworkRepository) http.HandlerFunc {
 				Id:      id,
 				Updated: updated,
 			})
-		default:
-			JSON.InternalServerError(writer, err)
+		} else {
+			JSON.InternalServerError(writer, e)
 		}
 	}
 }
@@ -116,6 +114,7 @@ func setReaction(ar ArtworkRepository) http.HandlerFunc {
 		var date = ntime.Now()
 
 		// it's debatable whether 201 should be returned on first setting the reaction
+		// tk return 201
 		if err = ar.SetReaction(user.Id, GetParam(request, "artworkId"), date, data); err == nil {
 			JSON.Ok(writer, struct {
 				Status string

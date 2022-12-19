@@ -230,15 +230,13 @@ func (ar *artworkRepository) RemoveReaction(userId string, artworkId string) err
 		return err
 	}
 
-	deleted, err := res.RowsAffected()
-	switch {
-	case err != nil:
-		return err
-	case deleted == 0:
+	if deleted, e := res.RowsAffected(); e != nil {
+		return e
+	} else if deleted == 0 {
 		return ErrNotFound
-	default:
-		return err
 	}
+
+	return nil
 }
 
 func (ar *artworkRepository) AddComment(userId string, artworkId string, data AddCommentData) (id string, date ntime.NTime, err error) {
