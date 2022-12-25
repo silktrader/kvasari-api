@@ -22,10 +22,9 @@ var (
 )
 
 // Auth performs ridiculously simple checks on routes, ensuring that requests include a valid user ID, as per project's specifications.
-func Auth(ar Repository) func(next http.Handler) http.Handler {
+func Auth(ar IRepository) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
-
 			var id, err = parseBearer(request)
 			if err != nil {
 				reportUnauthorised(w)
@@ -49,8 +48,8 @@ func Auth(ar Repository) func(next http.Handler) http.Handler {
 // parseBearer extracts the user id from the authorization header.
 func parseBearer(request *http.Request) (string, error) {
 	var header = request.Header.Get("Authorization")
-	if strings.HasPrefix(header, "Bearer ") {
-		var userId = header[7:]
+	if strings.HasPrefix(header, "Bearer: ") {
+		var userId = header[8:]
 		if len(userId) == 36 {
 			return userId, nil
 		}
@@ -65,9 +64,7 @@ func MustGetUser(request *http.Request) User {
 	var userValue = request.Context().Value(keyUser)
 	if userValue == nil {
 		panic(errBadAuth)
-
 	}
-
 	if user, ok := userValue.(User); !ok {
 		panic(errBadAuth)
 	} else {
@@ -75,7 +72,7 @@ func MustGetUser(request *http.Request) User {
 	}
 }
 
-func reportUnauthorised(w http.ResponseWriter) {
-	w.Header().Set("WWW-Authenticate", "Bearer")
-	w.WriteHeader(http.StatusUnauthorized)
+func reportUnauthorised(writer http.ResponseWriter) {
+	writer.Header().Set("WWW-Authenticate", "Bearer")
+	writer.WriteHeader(http.StatusUnauthorized)
 }
