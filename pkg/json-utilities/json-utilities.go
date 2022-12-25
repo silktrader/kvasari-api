@@ -62,15 +62,8 @@ func InternalServerError(writer http.ResponseWriter, err error) {
 
 // ValidationError encodes a 400 BadRequest response with a JSON object, containing a timestamp and an error message.
 func ValidationError(writer http.ResponseWriter, err error) {
-	writer.Header().Set("Content-Type", "application/json")
-	writer.WriteHeader(http.StatusBadRequest)
-	_ = json.NewEncoder(writer).Encode(newHttpError(err))
+	encodeJSON(writer, http.StatusBadRequest, newHttpMessage(err.Error()))
 }
-
-//func SeeOther(writer http.ResponseWriter, location string) {
-//	writer.Header().Set("Location", location)
-//	writer.WriteHeader(http.StatusSeeOther)
-//}
 
 func encodeJSON(writer http.ResponseWriter, status int, payload interface{}) {
 	writer.Header().Set("Content-Type", "application/json")
