@@ -1,13 +1,10 @@
 package sqlite
 
-// language=sqlite
 const schema = `
-BEGIN TRANSACTION;
-
 CREATE TABLE
 	IF NOT EXISTS users (
 		id TEXT NOT NULL,
-		alias TEXT NOT NULL CHECK (length ("alias") >= 5 AND length ("alias") < 16) UNIQUE,
+		alias TEXT NOT NULL CHECK (length (alias) >= 5 AND length (alias) < 16) UNIQUE,
 		name TEXT,
 		email TEXT NOT NULL UNIQUE,
 		password TEXT NOT NULL,
@@ -17,15 +14,15 @@ CREATE TABLE
 		PRIMARY KEY ("id")
 	);
 
-CREATE UNIQUE INDEX IF NOT EXISTS "Title Index" ON "users" ("alias" ASC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_alias ON users (alias);
 
 CREATE TABLE
 	IF NOT EXISTS artworks (
 		id TEXT PRIMARY KEY,
-		title TEXT NOT NULL,
-		type TEXT NOT NULL,
-		picture_url TEXT NOT NULL,
 		author_id TEXT NOT NULL,
+		type TEXT NOT NULL,
+		format TEXT NOT NULL,
+		title TEXT,
 		description TEXT,
 		year INTEGER,
 		location TEXT,
@@ -77,6 +74,4 @@ CREATE TABLE
 		CONSTRAINT artwork_fk FOREIGN KEY (artwork) REFERENCES artworks (id) ON DELETE CASCADE,
 		CONSTRAINT user_fk FOREIGN KEY (user) REFERENCES users (id) ON DELETE CASCADE
 	);
-
-COMMIT;
 `
