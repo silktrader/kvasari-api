@@ -3,56 +3,51 @@ package sqlite
 import (
 	"database/sql"
 	"errors"
+	"github.com/sirupsen/logrus"
 	"os"
 	"strings"
-
-	"github.com/sirupsen/logrus"
 )
 
 type Storage struct {
+	Logger     *logrus.Logger
 	Connection *sql.DB
 }
 
-// Initialise sets up a SQLite database connection
-// create struct instead to be returned?
-// tk this seems unorthodox; what if there are two Initialise calls? How to implement singletons? Nil checks?
-func Initialise(logger *logrus.Logger, path string) (connection *sql.DB, err error) {
-	// tk pass logger interface
+var ErrSchemaMismatch = errors.New("schema mismatch")
 
+// New sets up a SQLite database connection
+func New(logger *logrus.Logger, path string) (storage Storage, err error) {
+	storage.Logger = logger
 	logger.Println("initialising SQLite DB")
 
 	// the database already exists, check for its contents
-	if _, err := os.Stat(path); err == nil {
-
-		connection, err = getValidConnection(path)
+	if _, err = os.Stat(path); err == nil {
+		storage.Connection, err = getValidConnection(path)
 		if err != nil {
 			logger.WithError(err).Error("error while verifying existing database")
-			return nil, err
+			return storage, err
 		}
 	} else {
 		// create the file and initialise the schema; mind the explicit need for foreign keys constraints
-		connection, err = sql.Open("sqlite3", getConnectionString(path))
+		// can wrap errors to discriminate source; a debatable practice
+		storage.Connection, err = sql.Open("sqlite3", getConnectionString(path))
 		if err != nil {
 			logger.WithError(err).Error("error while creating new database")
-			return nil, err
+			return storage, err
 		}
-		_, err = connection.Exec(schema)
-		if err != nil {
+
+		if _, err = storage.Connection.Exec(schema); err != nil {
 			logger.WithError(err).Error("error while building database schema")
-			return nil, err
+			return storage, err
 		}
 	}
 
 	// opening the DB will fail silently when the package is compiled without CGO_ENABLED
-	if err = connection.Ping(); err != nil {
-		return nil, err
-	}
-	return connection, err
+	return storage, storage.Connection.Ping()
 }
 
 func getValidConnection(path string) (connection *sql.DB, err error) {
-	connection, err = sql.Open("sqlite3", getConnectionString(path))
-	if err != nil {
+	if connection, err = sql.Open("sqlite3", getConnectionString(path)); err != nil {
 		return nil, err
 	}
 
@@ -61,8 +56,8 @@ func getValidConnection(path string) (connection *sql.DB, err error) {
 	if err != nil {
 		return nil, err
 	}
-	_, err = desired.Exec(schema)
-	if err != nil {
+
+	if _, err = desired.Exec(schema); err != nil {
 		return nil, err
 	}
 
@@ -80,15 +75,18 @@ func getValidConnection(path string) (connection *sql.DB, err error) {
 	if sameSchemaMap(desiredTables, actualTables) {
 		return connection, nil
 	}
-	return nil, errors.New("schema mismatch")
+	return nil, ErrSchemaMismatch
 }
 
 func mapSchema(connection *sql.DB) (tables map[string]string, err error) {
-
 	rows, err := connection.Query(`SELECT name, sql FROM sqlite_master WHERE type = 'table'`)
 	if err != nil {
 		return nil, err
 	}
+
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	// for some reason in memory and on file sqlite schemas differ, possibly due to the hosting platform
 	var replacer = strings.NewReplacer(
@@ -101,23 +99,13 @@ func mapSchema(connection *sql.DB) (tables map[string]string, err error) {
 	tables = make(map[string]string)
 	var name, sqlCode string
 	for rows.Next() {
-		err = rows.Scan(&name, &sqlCode)
-		if err != nil {
+		if err = rows.Scan(&name, &sqlCode); err != nil {
 			return tables, err
 		}
 		tables[name] = replacer.Replace(sqlCode)
 	}
 
-	if err = rows.Err(); err != nil {
-		return tables, err
-	}
-
-	err = rows.Close()
-	if err != nil {
-		return tables, err
-	}
-
-	return tables, err
+	return tables, rows.Err()
 }
 
 func sameSchemaMap(first, second map[string]string) bool {
@@ -138,8 +126,7 @@ func getConnectionString(path string) string {
 	return path + "?_fk=on"
 }
 
-func Close(logger *logrus.Logger) {
-	logger.Debug("database stopping")
-	// tk is it safe to ignore errors?
-	//_ = connection.Close()
+func (storage *Storage) Close() {
+	storage.Logger.Infof("closing SQLite DB")
+	_ = storage.Connection.Close()
 }

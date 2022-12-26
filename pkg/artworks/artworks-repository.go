@@ -9,7 +9,7 @@ import (
 )
 
 type ArtworkRepository interface {
-	AddArtwork(data AddArtworkData) (string, ntime.NTime, error)
+	AddArtwork(data AddArtworkData) (ntime.NTime, error)
 	DeleteArtwork(artworkId string, userId string) bool
 	GetArtwork(artworkId string, requesterId string) (*Artwork, error)
 
@@ -31,7 +31,7 @@ type artworkRepository struct {
 	UserRepository users.UserRepository
 }
 
-func NewRepository(connection *sql.DB, userRepository users.UserRepository) ArtworkRepository {
+func NewRepository(connection *sql.DB, userRepository users.UserRepository) *artworkRepository {
 	return &artworkRepository{connection, userRepository}
 }
 
@@ -44,28 +44,27 @@ func closeRows(rows *sql.Rows) {
 	_ = rows.Close()
 }
 
-func (ar *artworkRepository) AddArtwork(data AddArtworkData) (string, ntime.NTime, error) {
+func (ar *artworkRepository) AddArtwork(data AddArtworkData) (ntime.NTime, error) {
 
-	var id = rest.MustGetNewUUID()
 	var now = ntime.Now()
 
 	result, err := ar.Connection.Exec(`
-		INSERT INTO artworks(id, title, type, picture_url, author_id, description, year, location, created, added, updated)
-		VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		id, data.Title, data.Type, data.PictureURL, data.AuthorId, data.Description, data.Year, data.Location, data.Created, now, now)
+		INSERT INTO artworks(id, type, format, author_id, added, updated)
+		VALUES(?, ?, ?, ?, ?, ?)`,
+		data.Id, data.Type, data.Format, data.AuthorId, now, now)
 
 	// don't bother checking for unique constraints with UUID generation
 	if err != nil {
-		return id, now, err
+		return now, err
 	}
 
 	// tk check whether needed
 	rows, err := result.RowsAffected()
 	if err != nil || rows < 1 {
-		return id, now, err
+		return now, err
 	}
 
-	return id, now, nil
+	return now, nil
 }
 
 func (ar *artworkRepository) GetArtwork(artworkId string, requesterId string) (*Artwork, error) {
@@ -75,7 +74,7 @@ func (ar *artworkRepository) GetArtwork(artworkId string, requesterId string) (*
 	// SQLite blocks at every write though, so bursts of comments and reactions (writes) can be problematic
 	var artwork = Artwork{}
 	err := ar.Connection.QueryRow(`
-		SELECT alias, name, title, type, picture_url, description, year, location,
+		SELECT alias, name, title, type, format, description, year, location,
 		       artworks.created, added, artworks.updated,
 		       (SELECT count(*) FROM artwork_comments WHERE artwork = ?) as comments,
 		       (SELECT count(*) FROM artwork_feedback WHERE artwork = ?) as reactions
@@ -87,7 +86,7 @@ func (ar *artworkRepository) GetArtwork(artworkId string, requesterId string) (*
 		&artwork.AuthorName,
 		&artwork.Title,
 		&artwork.Type,
-		&artwork.PictureUrl,
+		&artwork.Format,
 		&artwork.Description,
 		&artwork.Year,
 		&artwork.Location,
@@ -280,7 +279,8 @@ func (ar *artworkRepository) GetProfileData(userId string) (ProfileData, error) 
 	}
 
 	// fetch the user's sorted artwork
-	artworks, total, err := ar.GetUserArtworks(userId, 20, 0)
+	// tk parametrise pagination variables
+	artworks, total, err := ar.GetUserArtworks(userId, 100, 0)
 
 	// return actual data or last error
 	return ProfileData{total, artworks, followers, followed}, err
@@ -292,7 +292,7 @@ func (ar *artworkRepository) GetUserArtworks(userId string, pageSize int, page i
 
 	artworks = make([]ArtworkProfilePreview, 0, 12)
 	rows, err := ar.Connection.Query(`
-		SELECT id, title, picture_url, added, count(id) over() as cnt FROM artworks
+		SELECT id, title, format, added, count(id) over() as cnt FROM artworks
 		WHERE author_id = ? ORDER BY added DESC LIMIT ? OFFSET ?`,
 		userId, pageSize, page,
 	)
@@ -305,7 +305,7 @@ func (ar *artworkRepository) GetUserArtworks(userId string, pageSize int, page i
 
 	for rows.Next() {
 		var artwork ArtworkProfilePreview
-		if err = rows.Scan(&artwork.Id, &artwork.Title, &artwork.PictureURL, &artwork.Added, &tally); err != nil {
+		if err = rows.Scan(&artwork.Id, &artwork.Title, &artwork.Format, &artwork.Added, &tally); err != nil {
 			return artworks, tally, err
 		}
 		artworks = append(artworks, artwork)
@@ -330,7 +330,7 @@ func (ar *artworkRepository) GetStream(userId string, since string, latest strin
 	)
 
 	rows, err := ar.Connection.Query(`
-		SELECT arts.id, title, alias, name, picture_url, added, new, deleted,
+		SELECT arts.id, title, alias, name, format, added, new, deleted,
 		       coalesce(comments_count, 0) as comments_count,
 		       coalesce(feedback_count, 0) as feedback_count
 		FROM (SELECT *, added > ? as new FROM artworks
@@ -355,7 +355,7 @@ func (ar *artworkRepository) GetStream(userId string, since string, latest strin
 	for rows.Next() {
 		var artwork ArtworkStreamPreview
 		if err = rows.Scan(&artwork.Id, &artwork.Title, &artwork.AuthorAlias, &artwork.AuthorName,
-			&artwork.PictureURL, &artwork.Added, &recent, &deleted, &artwork.Comments, &artwork.Reactions); err != nil {
+			&artwork.Format, &artwork.Added, &recent, &deleted, &artwork.Comments, &artwork.Reactions); err != nil {
 			return data, err
 		}
 

@@ -83,12 +83,12 @@ func run() error {
 	logger.Infof("application initializing")
 
 	// initialise database before registering handlers for an immediate exit in case of issues
-	storage, err := sqlite.Initialise(logger, cfg.DB.Filename)
+	storage, err := sqlite.New(logger, cfg.DB.Filename)
 	if err != nil {
 		logger.WithError(err).Error("error initialising storage")
 		return fmt.Errorf("error while initialising storage: %w", err)
 	}
-	defer sqlite.Close(logger)
+	defer storage.Close()
 
 	// Start (main) API server
 	logger.Info("initializing API server")
@@ -113,9 +113,9 @@ func run() error {
 
 	// setup handlers
 	// tk look into passing pointers
-	var authRepository = auth.NewRepository(storage)
-	var usersRepository = users.NewRepository(storage)
-	var artworksRepository = artworks.NewRepository(storage, usersRepository)
+	var authRepository = auth.NewRepository(storage.Connection)
+	var usersRepository = users.NewRepository(storage.Connection)
+	var artworksRepository = artworks.NewRepository(storage.Connection, usersRepository)
 
 	users.RegisterHandlers(e, usersRepository, authRepository)
 	artworks.RegisterHandlers(e, artworksRepository, authRepository)

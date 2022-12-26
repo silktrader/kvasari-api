@@ -8,7 +8,7 @@ import (
 	"net/http"
 )
 
-func RegisterHandlers(engine rest.Engine, ur UserRepository, ar auth.Repository) {
+func RegisterHandlers(engine rest.Engine, ur UserRepository, ar auth.IRepository) {
 
 	var authenticated = auth.Auth(ar)
 

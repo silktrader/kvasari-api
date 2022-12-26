@@ -103,27 +103,25 @@ func (ur *userRepository) GetFollowers(userAlias string) ([]Follower, error) {
 
 // GetUserByAlias either returns a user matching the alias, or an error (along with an ignorable empty struct).
 func (ur *userRepository) GetUserByAlias(alias string) (user User, err error) {
-	err = ur.Connection.QueryRow("SELECT id, name, alias, created, updated FROM users WHERE alias = ?", alias).Scan(
+	return user, ur.Connection.QueryRow("SELECT id, name, alias, created, updated FROM users WHERE alias = ?", alias).Scan(
 		&user.Id,
 		&user.Name,
 		&user.Alias,
 		&user.Created,
 		&user.Updated,
 	)
-	return user, err
 }
 
 // GetUserById either returns a user matching the id, or an error (along with an ignorable empty struct).
 func (ur *userRepository) GetUserById(id string) (user User, err error) {
 	// if the query selects no rows, `Scan` will return ErrNoRows
-	err = ur.Connection.QueryRow("SELECT id, name, alias, created, updated FROM users WHERE id = ?", id).Scan(
+	return user, ur.Connection.QueryRow("SELECT id, name, alias, created, updated FROM users WHERE id = ?", id).Scan(
 		&user.Id,
 		&user.Name,
 		&user.Alias,
 		&user.Created,
 		&user.Updated,
 	)
-	return user, err
 }
 
 func (ur *userRepository) Register(data AddUserData) (*User, error) {

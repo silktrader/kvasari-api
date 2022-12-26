@@ -19,15 +19,25 @@ const (
 	Photograph   ArtworkType = "Photograph"
 )
 
+type ImageFormat string
+
+const (
+	PNG  ImageFormat = "png"
+	JPG  ImageFormat = "jpg"
+	WEBP ImageFormat = "webp"
+)
+
 // tk really odd issue with variadic arguments; can't specify ArtworkType[]
 var artworkTypes = []interface{}{Painting, Drawing, Sculpture, Architecture, Photograph}
+
+// var imageFormats = []interface{}{PNG, JPG, WEBP}
 
 type Artwork struct {
 	AuthorName  string
 	AuthorAlias string
 	Title       string
 	Description string
-	PictureUrl  string
+	Format      string
 	Location    string
 	Year        int
 	Type        ArtworkType
@@ -39,23 +49,17 @@ type Artwork struct {
 }
 
 type AddArtworkData struct {
-	AuthorId    string
-	Title       string
-	Description string
-	PictureURL  string
-	Location    string
-	Year        int
-	Type        ArtworkType
-	Created     ntime.NTime
+	Id       string
+	AuthorId string
+	Format   ImageFormat
+	Type     ArtworkType
 }
 
+// tk check whether this is actually needed
 func (data AddArtworkData) Validate() error {
 	return validation.ValidateStruct(&data,
 		validation.Field(&data.Type, validation.Required, validation.In(artworkTypes...)),
-		validation.Field(&data.Title, validation.Required),
-		validation.Field(&data.PictureURL, validation.Required, is.URL),
-		validation.Field(&data.Year, validation.Min(-10000), validation.Max(10000)),
-		validation.Field(&data.Created, validation.Date(time.RFC3339)),
+		validation.Field(&data.Format, validation.Required, is.URL),
 	)
 }
 
@@ -112,6 +116,7 @@ type CommentResponse struct {
 // Profile Response DTOs
 
 type ProfileData struct {
+	// TotalArtworks refers to the total number of artworks uploaded by a user, as opposed to the ones sent in the resp.
 	TotalArtworks int
 	Artworks      []ArtworkProfilePreview
 	Followers     []users.RelationData
@@ -119,10 +124,10 @@ type ProfileData struct {
 }
 
 type ArtworkProfilePreview struct {
-	Id         string
-	Title      string
-	PictureURL string // ideally, a server generated preview
-	Added      ntime.NTime
+	Id     string
+	Title  *string // the alternative is to use sql.NullString and a custom marshaller
+	Format string
+	Added  ntime.NTime
 }
 
 // I wasted one hour of my life attempting to find out why my custom format wouldn't work
@@ -150,7 +155,7 @@ type ArtworkStreamPreview struct {
 	Title       string
 	AuthorAlias string
 	AuthorName  string
-	PictureURL  string
+	Format      string
 	Reactions   int
 	Comments    int
 	Added       ntime.NTime

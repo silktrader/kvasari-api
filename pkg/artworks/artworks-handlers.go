@@ -1,15 +1,28 @@
 package artworks
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"github.com/silktrader/kvasari/pkg/auth"
 	JSON "github.com/silktrader/kvasari/pkg/json-utilities"
 	"github.com/silktrader/kvasari/pkg/ntime"
 	. "github.com/silktrader/kvasari/pkg/rest"
+	"io"
+	"mime/multipart"
 	"net/http"
+	"os"
+	"strings"
 )
 
-func RegisterHandlers(engine Engine, ar ArtworkRepository, aur auth.Repository) {
+// maxFileUploadSize determines the maximum incoming file size; it's set to ~15MB and will be handled in memory
+const maxFileUploadSize = 15728640
+
+// acceptableFileTypes describes which file types can be uploaded by users
+var acceptableFileTypes = [...]string{"image/jpeg", "image/png", "image/webp"}
+
+func RegisterHandlers(engine Engine, ar ArtworkRepository, aur auth.IRepository) {
 
 	var authenticated = auth.Auth(aur)
 
@@ -33,34 +46,125 @@ func RegisterHandlers(engine Engine, ar ArtworkRepository, aur auth.Repository) 
 	engine.Get("/users/:alias/stream", getStream(ar), authenticated)
 }
 
-// addArtwork handles the authenticated POST "/artworks" route
+func closeFile(file multipart.File) {
+	_ = file.Close()
+}
+
+func getFormat(imageType string) ImageFormat {
+	switch imageType {
+	case "image/png":
+		return PNG
+	case "image/webp":
+		return WEBP
+	default:
+		return JPG
+	}
+}
+
 func addArtwork(ar ArtworkRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
-		// parse and validate the artwork data
-		data, err := JSON.DecodeValidate[AddArtworkData](request)
-		if err != nil {
-			JSON.ValidationError(writer, err)
-			return
-		}
-
-		// ensure that the author's ID matches the authenticated user's one
-		if auth.MustGetUser(request).Id != data.AuthorId {
+		// ensure that the uploader alias matches the authenticated user's one
+		var user = auth.MustGetUser(request)
+		if user.Alias != request.FormValue("alias") {
 			JSON.Forbidden(writer)
 			return
 		}
 
-		// return a JSON with the artwork's ID and time of creation
-		if id, updated, e := ar.AddArtwork(data); e == nil {
+		// ParseMultipartForm argument refers to a memory limit, additional bytes will be cached on disk
+		// 100 << 20 is a bitwise equivalent of 100 ** 2 ^ 20
+		if err := request.ParseMultipartForm(maxFileUploadSize); err != nil {
+			JSON.InternalServerError(writer, err)
+			return
+		}
+
+		uploadedFile, header, err := request.FormFile("image")
+		if err != nil {
+			JSON.BadRequestWithMessage(writer, "Malformed image upload")
+			return
+		}
+
+		defer closeFile(uploadedFile)
+
+		// ensure files are sized appropriately
+		if header.Size > maxFileUploadSize {
+			JSON.BadRequestWithMessage(writer, fmt.Sprintf("%s is too large; limit file sizes to 15MB", header.Filename))
+			return
+		}
+
+		var buffer = make([]byte, 512)
+		_, err = uploadedFile.Read(buffer)
+		if err != nil {
+			JSON.InternalServerError(writer, err)
+			return
+		}
+
+		filetype := http.DetectContentType(buffer)
+		var invalidFileType = true
+		for _, acceptableType := range acceptableFileTypes {
+			if filetype == acceptableType {
+				invalidFileType = false
+				break
+			}
+		}
+		if invalidFileType {
+			JSON.BadRequestWithMessage(writer, fmt.Sprintf("%s isn't a valid file type; choose among: %v",
+				header.Filename,
+				strings.Trim(fmt.Sprintf("%v", acceptableFileTypes), "[]")))
+			return
+		}
+
+		// end filetype detection, seek to start to avoid parsing issues
+		if _, err = uploadedFile.Seek(0, io.SeekStart); err != nil {
+			JSON.InternalServerError(writer, err)
+			return
+		}
+
+		// hash the image, to identify it and ensure it's not a duplicate
+		hash := sha256.New()
+		if _, err = io.Copy(hash, uploadedFile); err != nil {
+			JSON.InternalServerError(writer, err)
+			return
+		}
+		var checksum = hex.EncodeToString(hash.Sum(nil))
+
+		// write image file named after its hash and detected file extension
+		var fileFormat = getFormat(filetype)
+		storedFile, err := os.Create(fmt.Sprintf("./images/%s.%s", checksum, fileFormat))
+		if err != nil {
+			JSON.InternalServerError(writer, err)
+			return
+		}
+
+		defer closeFile(storedFile)
+
+		// seek to start after checksum calculations
+		if _, err = uploadedFile.Seek(0, io.SeekStart); err != nil {
+			JSON.InternalServerError(writer, err)
+			return
+		}
+
+		if written, e := io.Copy(storedFile, uploadedFile); e != nil || written == 0 {
+			JSON.InternalServerError(writer, e)
+			return
+		}
+
+		// finally, attempt to update the database
+		if date, e := ar.AddArtwork(AddArtworkData{
+			Id:       checksum,
+			AuthorId: user.Id,
+			Format:   fileFormat,
+			Type:     Painting, // default for the moment tk change to default in DB
+		}); e != nil {
+			JSON.InternalServerError(writer, e)
+		} else {
 			JSON.Created(writer, struct {
 				Id      string
 				Updated ntime.NTime
 			}{
-				Id:      id,
-				Updated: updated,
+				Id:      checksum,
+				Updated: date,
 			})
-		} else {
-			JSON.InternalServerError(writer, e)
 		}
 	}
 }
