@@ -35,11 +35,11 @@ var artworkTypes = []interface{}{Painting, Drawing, Sculpture, Architecture, Pho
 type Artwork struct {
 	AuthorName  string
 	AuthorAlias string
-	Title       string
-	Description string
+	Title       *string
+	Description *string
 	Format      string
-	Location    string
-	Year        int
+	Location    *string
+	Year        *int
 	Type        ArtworkType
 	Created     ntime.NTime
 	Added       ntime.NTime
@@ -159,4 +159,10 @@ type ArtworkStreamPreview struct {
 	Reactions   int
 	Comments    int
 	Added       ntime.NTime
+}
+
+// Images metadata, to be expanded
+
+type ImageMetadata struct {
+	Format string
 }

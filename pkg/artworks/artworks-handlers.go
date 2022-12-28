@@ -16,8 +16,8 @@ import (
 	"strings"
 )
 
-// maxFileUploadSize determines the maximum incoming file size; it's set to ~15MB and will be handled in memory
-const maxFileUploadSize = 15728640
+// maxFileUploadSize determines the maximum incoming file size; set to ~40MiB
+const maxFileUploadSize = 41943040
 
 // acceptableFileTypes describes which file types can be uploaded by users
 var acceptableFileTypes = [...]string{"image/jpeg", "image/png", "image/webp"}
@@ -30,6 +30,7 @@ func RegisterHandlers(engine Engine, ar ArtworkRepository, aur auth.IRepository)
 	engine.Post("/artworks", addArtwork(ar), authenticated)
 	engine.Delete("/artworks/:artworkId", deleteArtwork(ar), authenticated)
 	engine.Get("/artworks/:artworkId", getArtwork(ar), authenticated)
+	engine.Get("/artworks/:artworkId/image", getArtworkImage(ar), authenticated)
 
 	// comments
 	engine.Post("/artworks/:artworkId/comments", addComment(ar), authenticated)
@@ -193,6 +194,17 @@ func getArtwork(ar ArtworkRepository) http.HandlerFunc {
 			JSON.Ok(writer, response)
 		default:
 			JSON.InternalServerError(writer, err)
+		}
+	}
+}
+
+func getArtworkImage(ar ArtworkRepository) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+		var artworkId = GetParam(request, "artworkId")
+		if metadata, err := ar.GetImageMetadata(artworkId, auth.MustGetUser(request).Id); err == nil {
+			http.ServeFile(writer, request, fmt.Sprintf("images/%s.%s", artworkId, metadata.Format))
+		} else {
+			JSON.NotFound(writer, "Image not found, or forbidden access")
 		}
 	}
 }

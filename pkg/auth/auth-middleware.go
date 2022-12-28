@@ -48,8 +48,8 @@ func Auth(ar IRepository) func(next http.Handler) http.Handler {
 // parseBearer extracts the user id from the authorization header.
 func parseBearer(request *http.Request) (string, error) {
 	var header = request.Header.Get("Authorization")
-	if strings.HasPrefix(header, "Bearer: ") {
-		var userId = header[8:]
+	if strings.HasPrefix(header, "Bearer ") {
+		var userId = header[7:]
 		if len(userId) == 36 {
 			return userId, nil
 		}

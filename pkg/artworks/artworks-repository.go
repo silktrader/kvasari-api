@@ -12,6 +12,7 @@ type ArtworkRepository interface {
 	AddArtwork(data AddArtworkData) (ntime.NTime, error)
 	DeleteArtwork(artworkId string, userId string) bool
 	GetArtwork(artworkId string, requesterId string) (*Artwork, error)
+	GetImageMetadata(artworkId string, requesterId string) (ImageMetadata, error)
 
 	AddComment(userId string, artworkId string, data AddCommentData) (id string, date ntime.NTime, err error)
 	DeleteComment(userId string, commentId string) error
@@ -197,6 +198,17 @@ func (ar *artworkRepository) DeleteArtwork(artworkId string, userId string) bool
 		return false
 	}
 	return true
+}
+
+func (ar *artworkRepository) GetImageMetadata(artworkId string, requesterId string) (metadata ImageMetadata, err error) {
+	return metadata, ar.Connection.QueryRow(`
+		SELECT format
+		FROM   artworks
+		WHERE  id = ?
+		       AND deleted = false
+		       AND ( author_id = ? OR author_id IN (SELECT target FROM followers WHERE follower = ?));`,
+		artworkId, requesterId, requesterId,
+	).Scan(&metadata.Format)
 }
 
 func (ar *artworkRepository) SetReaction(userId string, artworkId string, date ntime.NTime, data AddReactionRequest) error {
