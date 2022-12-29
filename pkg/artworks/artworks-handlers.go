@@ -296,7 +296,6 @@ func addComment(ar ArtworkRepository) http.HandlerFunc {
 // deleteComment handles the authenticated DELETE "/artworks/:artworkId/comments/:commentId" route
 func deleteComment(ar ArtworkRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
-
 		if err := ar.DeleteComment(auth.MustGetUser(request).Id, GetParam(request, "commentId")); err == nil {
 			JSON.NoContent(writer)
 		} else if errors.Is(err, ErrNotFound) {
@@ -310,7 +309,6 @@ func deleteComment(ar ArtworkRepository) http.HandlerFunc {
 // getArtworkComments handles the authenticated GET "/artworks/:artworkId/comments" route
 func getArtworkComments(ar ArtworkRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
-
 		if comments, err := ar.GetArtworkComments(GetParam(request, "artworkId"), auth.MustGetUser(request).Id); err == nil {
 			JSON.Ok(writer, comments)
 		} else {
@@ -321,7 +319,6 @@ func getArtworkComments(ar ArtworkRepository) http.HandlerFunc {
 
 func getArtworkReactions(ar ArtworkRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
-
 		if reacts, err := ar.GetArtworkReactions(GetParam(request, "artworkId"), auth.MustGetUser(request).Id); err == nil {
 			JSON.Ok(writer, reacts)
 		} else {

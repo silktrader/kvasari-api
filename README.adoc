@@ -1,0 +1,54 @@
+= KVasari
+Carlo Giuseppe Tomazzoli <https://github.com/silktrader[@silktrader]>
+ifndef::env-github[:icons: font]
+ifdef::env-github[]
+:status:
+:caution-caption: :fire:
+:important-caption: :exclamation:
+:note-caption: :paperclip:
+:tip-caption: :bulb:
+:warning-caption: :warning:
+endif::[]
+
+KVasari's API serves the narcissistic needs of visual artists, allowing them to upload their artwork, as well as receive and formulate feedback.
+
+== Features
+
+Endpoints for *adding, removing and editing artworks*, along with their metadata are available.
+
+Users can edit basic details about their artistic selves, *comment* in textual form, or leave *graphical reactions* to others`' artworks.
+
+Additionally, the API's participants can *follow* their peers, or possibly *ban* them from interactions.
+
+== Requirements
+
+*Go 1.19*, or above, is required.
+
+KVasari depends on the following libraries:
+
+* https://github.com/julienschmidt/httprouter[httprouter]
+* https://github.com/mattn/go-sqlite3[go-sqlite3]
+* https://github.com/go-ozzo/ozzo-validation[ozzo-validation]
+* https://github.com/gofrs/uuid[uuid]
+
+I developed the project on a _Windows_ box, through _WSL2_, with _Goland_, lots of love and the occasional curse.
+
+=== SQLite Alternatives
+[CAUTION]
+--
+`go-sqlite3` mandates the presence of GCC, and the need for setting the environment variable `CGO_ENABLED=1`. On a Windows machine, configuring this additional compilation step can be tiresome.
+--
+
+[https://pkg.go.dev/modernc.org/sqlite]`modernc.org/sqlite` is a valid alternative to `go-sqlite3`, which doesn't depend on *CGO*, thus doesn't require pre-compilation. 
+
+Its performance doesn't match `go-sqlite3`, but for light loads that isn't a concern: https://datastation.multiprocess.io/blog/2022-05-12-sqlite-in-go-with-and-without-cgo.html[Benchmark Comparison]
+
+== Build
+
+Run `go build ./cmd/webapi/` and pray.
+
+== Copyright and License
+
+Copyright (C) 2022-present Carlo Giuseppe Tomazzoli.
+
+Use of this software is granted under the terms of the GPLv3 License.
