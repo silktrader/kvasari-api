@@ -134,7 +134,9 @@ type ArtworkProfilePreview struct {
 // only to realise time.Parse expects specific numbers for hours, minutes, etc.
 var datesRule = validation.Date(time.RFC3339)
 
+// getStreamParams returns the values of query parameters `since` and `latest`, after validating them
 func getStreamParams(streamParams url.Values) (since string, latest string, err error) {
+	// there's no need to check for both parameters when one fails
 	since = streamParams.Get("since")
 	if err = validation.Validate(since, validation.Required, datesRule); err != nil {
 		return since, latest, err

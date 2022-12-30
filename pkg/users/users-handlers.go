@@ -13,7 +13,7 @@ func RegisterHandlers(engine rest.Engine, ur UserRepository, ar auth.IRepository
 	var authenticated = auth.Auth(ar)
 
 	engine.Post("/sessions", login(ur))
-	engine.Get("/users", getUsers(ur))
+	engine.Get("/users", getUsers(ur), authenticated)
 	engine.Post("/users", registerUser(ur))
 
 	// followers
@@ -33,16 +33,27 @@ func RegisterHandlers(engine rest.Engine, ur UserRepository, ar auth.IRepository
 	// doesn't return a handler, as it's already present in the original scope
 }
 
-// getUsers handles the GET "/users" route and fetches all existing users.
-// Neither authorisation nor authentication are required for development purposes.
+// getUsers handles the GET "/users" route and fetches all the existing users, matching a name or alias pattern,
+// that the requester has access to.
 func getUsers(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
-		var users, err = ur.GetAll()
+		// ensure the requester alias matches the request's credentials
+		var filter, requesterAlias, err = getFilteredUsersParams(request.URL.Query())
 		if err != nil {
-			JSON.InternalServerError(writer, err)
+			JSON.ValidationError(writer, err)
 			return
 		}
-		JSON.Ok(writer, users)
+
+		if requesterAlias != auth.MustGetUser(request).Alias {
+			JSON.Forbidden(writer)
+			return
+		}
+
+		if users, e := ur.GetFilteredUsers(filter, requesterAlias); e != nil {
+			JSON.InternalServerError(writer, e)
+		} else {
+			JSON.Ok(writer, users)
+		}
 	}
 }
 

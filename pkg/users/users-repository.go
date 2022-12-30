@@ -11,7 +11,7 @@ import (
 )
 
 type UserRepository interface {
-	GetAll() ([]User, error)
+	GetFilteredUsers(filter string, requesterId string) ([]User, error)
 	Register(data AddUserData) (*User, error)
 	GetUserById(id string) (user User, err error)
 	GetUserByAlias(alias string) (user User, err error)
@@ -48,9 +48,14 @@ func NewRepository(connection *sql.DB) UserRepository {
 	return &userRepository{connection}
 }
 
-func (ur *userRepository) GetAll() (users []User, err error) {
-
-	rows, err := ur.Connection.Query("SELECT id, name, alias, email, created, updated FROM users")
+func (ur *userRepository) GetFilteredUsers(filter string, requesterId string) ([]User, error) {
+	var users = make([]User, 0) // always return an empty list, rather than null
+	var filterPattern = fmt.Sprintf("%%%s%%", filter)
+	rows, err := ur.Connection.Query(`
+		SELECT id, name, alias, email, created, updated FROM users
+		WHERE alias LIKE ? OR name LIKE ?
+		AND ? NOT IN (SELECT target FROM bans WHERE source = users.id)`,
+		filterPattern, filterPattern, requesterId)
 	if err != nil {
 		return nil, err
 	}

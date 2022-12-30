@@ -4,6 +4,7 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/go-ozzo/ozzo-validation/v4/is"
 	"github.com/silktrader/kvasari/pkg/ntime"
+	"net/url"
 	"time"
 )
 
@@ -66,6 +67,24 @@ func (data UpdateAliasData) Validate() error {
 
 func ValidateUserAlias(alias string) error {
 	return validation.Validate(alias, aliasRules...)
+}
+
+// filtered users GET query parameters validation
+
+// getStreamParams returns the values of query parameters `since` and `latest`, after validating them
+func getFilteredUsersParams(params url.Values) (filter string, requesterAlias string, err error) {
+	// there's no need to check for both parameters when one fails
+	filter = params.Get("filter")
+	if err = validation.Validate(filter, nameRules...); err != nil {
+		return filter, requesterAlias, err
+	}
+
+	requesterAlias = params.Get("requester")
+	if err = validation.Validate(requesterAlias, aliasRules...); err != nil {
+		return filter, requesterAlias, err
+	}
+
+	return filter, requesterAlias, err
 }
 
 // Bans
