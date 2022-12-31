@@ -27,6 +27,7 @@ func RegisterHandlers(engine rest.Engine, ur UserRepository, ar auth.IRepository
 	engine.Delete("/users/:alias/bans/:target", unbanUser(ur), authenticated)
 
 	// user details
+	engine.Get("/users/:alias", getDetails(ur), authenticated)
 	engine.Put("/users/:alias/name", updateName(ur), authenticated)
 	engine.Put("/users/:alias/alias", updateAlias(ur), authenticated)
 
@@ -44,12 +45,13 @@ func getUsers(ur UserRepository) http.HandlerFunc {
 			return
 		}
 
-		if requesterAlias != auth.MustGetUser(request).Alias {
+		var user = auth.MustGetUser(request)
+		if requesterAlias != user.Alias {
 			JSON.Forbidden(writer)
 			return
 		}
 
-		if users, e := ur.GetFilteredUsers(filter, requesterAlias); e != nil {
+		if users, e := ur.GetFilteredUsers(filter, user.Id); e != nil {
 			JSON.InternalServerError(writer, e)
 		} else {
 			JSON.Ok(writer, users)
@@ -165,5 +167,25 @@ func login(ur UserRepository) http.HandlerFunc {
 			Alias:  user.Alias,
 			Status: "authenticated",
 		})
+	}
+}
+
+// getDetails handles the GET "/users/:alias" route and returns basic user details, including a mere count of
+// uploaded artworks, followers and following
+func getDetails(ur UserRepository) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+		// validate the alias
+		var alias, err = getValidateAlias(request)
+		if err != nil {
+			JSON.ValidationError(writer, err)
+			return
+		}
+
+		// fetch user details or return a not found message, even in case of bans
+		if details, err := ur.GetDetails(alias, auth.MustGetUser(request).Id); err == nil {
+			JSON.Ok(writer, details)
+		} else {
+			JSON.NotFound(writer, "user not found or unavailable")
+		}
 	}
 }

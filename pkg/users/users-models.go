@@ -1,16 +1,29 @@
 package users
 
 import (
+	"errors"
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/go-ozzo/ozzo-validation/v4/is"
+	"github.com/julienschmidt/httprouter"
 	"github.com/silktrader/kvasari/pkg/ntime"
+	"net/http"
 	"net/url"
 	"time"
 )
 
-var nameRules = []validation.Rule{validation.Required, validation.Length(5, 50)}
-var aliasRules = []validation.Rule{validation.Required, validation.Length(5, 16), is.UTFLetterNumeric}
-var passwordRules = []validation.Rule{validation.Required, validation.Length(8, 50)}
+const (
+	maxNameLength  = 50
+	maxAliasLength = 16
+)
+
+// validation rules reused throughout the package
+var (
+	nameRules     = []validation.Rule{validation.Required, validation.Length(5, maxNameLength)}
+	aliasRules    = []validation.Rule{validation.Required, validation.Length(5, maxAliasLength), is.UTFLetterNumeric}
+	passwordRules = []validation.Rule{validation.Required, validation.Length(8, 50)}
+)
+
+var ErrMissingAlias = errors.New("missing `alias` parameter")
 
 type User struct {
 	Id      string
@@ -69,13 +82,35 @@ func ValidateUserAlias(alias string) error {
 	return validation.Validate(alias, aliasRules...)
 }
 
+// getValidateAlias verifies the `alias` request parameter before proceeding with queries;
+// possibly returns a missing alias error, or a validation one
+func getValidateAlias(request *http.Request) (alias string, err error) {
+	if alias = httprouter.ParamsFromContext(request.Context()).ByName("alias"); alias == "" {
+		return alias, ErrMissingAlias
+	}
+	return alias, ValidateUserAlias(alias)
+}
+
+// UserDetails describes data returned by the getDetails() handler and repository method
+type UserDetails struct {
+	Name      string
+	Email     string
+	Followers int
+	Following int
+	Artworks  int
+	Comments  int
+	Reactions int
+	Created   ntime.NTime
+	Updated   ntime.NTime
+}
+
 // filtered users GET query parameters validation
 
-// getStreamParams returns the values of query parameters `since` and `latest`, after validating them
+// getStreamParams returns the values of query parameters `filter` and `requesterAlias`, after validating them
 func getFilteredUsersParams(params url.Values) (filter string, requesterAlias string, err error) {
 	// there's no need to check for both parameters when one fails
 	filter = params.Get("filter")
-	if err = validation.Validate(filter, nameRules...); err != nil {
+	if err = validation.Validate(filter, validation.Required, validation.Length(3, maxNameLength)); err != nil {
 		return filter, requesterAlias, err
 	}
 

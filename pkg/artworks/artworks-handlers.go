@@ -317,6 +317,7 @@ func getArtworkComments(ar ArtworkRepository) http.HandlerFunc {
 	}
 }
 
+// getArtworkReactions handles the authenticated GET "/artworks/:artworkId/reactions" route
 func getArtworkReactions(ar ArtworkRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if reacts, err := ar.GetArtworkReactions(GetParam(request, "artworkId"), auth.MustGetUser(request).Id); err == nil {
@@ -330,7 +331,6 @@ func getArtworkReactions(ar ArtworkRepository) http.HandlerFunc {
 // getProfile handles the authenticated GET "/users/:alias/profile" route
 func getProfile(ar ArtworkRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
-
 		// check whether the user has legitimate access to the route
 		var user = auth.MustGetUser(request)
 		if user.Alias != GetParam(request, "alias") {
@@ -349,7 +349,6 @@ func getProfile(ar ArtworkRepository) http.HandlerFunc {
 // getStream handles the authenticated GET "/users/:alias/stream?since=date&latest=date" route
 func getStream(ar ArtworkRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
-
 		// check whether the user has legitimate access to the route
 		var user = auth.MustGetUser(request)
 		if user.Alias != GetParam(request, "alias") {

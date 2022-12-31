@@ -26,6 +26,8 @@ type UserRepository interface {
 	Unban(sourceId string, targetAlias string) error
 	GetBans(sourceId string) ([]BannedUser, error)
 	GetUserRelations(userId string) ([]RelationData, []RelationData, error)
+
+	GetDetails(alias string, requesterId string) (details UserDetails, err error)
 }
 
 type userRepository struct {
@@ -53,9 +55,10 @@ func (ur *userRepository) GetFilteredUsers(filter string, requesterId string) ([
 	var filterPattern = fmt.Sprintf("%%%s%%", filter)
 	rows, err := ur.Connection.Query(`
 		SELECT id, name, alias, email, created, updated FROM users
-		WHERE alias LIKE ? OR name LIKE ?
+		WHERE id != ?
+		AND (alias LIKE ? OR name LIKE ?)
 		AND ? NOT IN (SELECT target FROM bans WHERE source = users.id)`,
-		filterPattern, filterPattern, requesterId)
+		requesterId, filterPattern, filterPattern, requesterId)
 	if err != nil {
 		return nil, err
 	}
@@ -237,4 +240,31 @@ func (ur *userRepository) GetUserRelations(userId string) ([]RelationData, []Rel
 	}
 
 	return followers, followed, err
+}
+
+func (ur *userRepository) GetDetails(alias string, requesterId string) (details UserDetails, err error) {
+
+	return details, ur.Connection.QueryRow(`
+		SELECT
+			name,
+			email,
+			created,
+			updated,
+			(SELECT count(follower) FROM followers WHERE target = users.id) as followers,
+			(SELECT count(target) FROM followers WHERE follower = users.id) as following,
+			(SELECT count(id) FROM artworks WHERE author_id = users.id) as artworks,
+			(SELECT count(user) FROM artwork_comments WHERE user = users.id) as comments,
+			(SELECT count(user) FROM artwork_feedback WHERE user = users.id) as reactions
+		FROM users
+		WHERE alias = ? AND ? NOT IN (SELECT target FROM bans WHERE source = users.id)`, alias, requesterId).Scan(
+		&details.Name,
+		&details.Email,
+		&details.Created,
+		&details.Updated,
+		&details.Followers,
+		&details.Following,
+		&details.Artworks,
+		&details.Comments,
+		&details.Reactions,
+	)
 }
