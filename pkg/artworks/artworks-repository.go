@@ -8,32 +8,31 @@ import (
 	"github.com/silktrader/kvasari/pkg/users"
 )
 
-type ArtworkRepository interface {
+type Storer interface {
 	AddArtwork(data AddArtworkData) (ntime.NTime, error)
-	DeleteArtwork(artworkId string, userId string) bool
-	GetArtwork(artworkId string, requesterId string) (*Artwork, error)
-	GetImageMetadata(artworkId string, requesterId string) (ImageMetadata, error)
+	DeleteArtwork(artworkId, userId string) bool
+	GetArtwork(artworkId, requesterId string) (*Artwork, error)
+	GetImageMetadata(artworkId, requesterId string) (ImageMetadata, error)
 
-	AddComment(userId string, artworkId string, data AddCommentData) (id string, date ntime.NTime, err error)
-	DeleteComment(userId string, commentId string) error
-	GetArtworkComments(artworkId string, requesterId string) ([]CommentResponse, error)
+	AddComment(userId, artworkId string, data AddCommentData) (string, ntime.NTime, error)
+	DeleteComment(userId, commentId string) error
+	GetArtworkComments(artworkId, requesterId string) ([]CommentResponse, error)
 
-	SetReaction(userId string, artworkId string, date ntime.NTime, feedback AddReactionRequest) error
-	RemoveReaction(userId string, artworkId string) error
-	GetArtworkReactions(artworkId string, requesterId string) ([]ReactionResponse, error)
+	SetReaction(userId, artworkId string, date ntime.NTime, feedback AddReactionRequest) error
+	RemoveReaction(userId, artworkId string) error
+	GetArtworkReactions(artworkId, requesterId string) ([]ReactionResponse, error)
 
-	GetProfileData(userId string) (ProfileData, error)
-	GetUserArtworks(userId string, pageSize int, page int) ([]ArtworkProfilePreview, int, error)
-	GetStream(userId string, since string, latest string) (data StreamData, err error)
+	GetUserArtworks(userAlias, requesterId string, pageData PageData) ([]ArtworkData, error)
+	GetStream(userId, since, latest string) (data StreamData, err error)
 }
 
-type artworkRepository struct {
-	Connection     *sql.DB
-	UserRepository users.UserRepository
+type Store struct {
+	Connection *sql.DB
+	UserStore  users.UserRepository
 }
 
-func NewRepository(connection *sql.DB, userRepository users.UserRepository) *artworkRepository {
-	return &artworkRepository{connection, userRepository}
+func NewStore(connection *sql.DB, userStore users.UserRepository) *Store {
+	return &Store{connection, userStore}
 }
 
 var (
@@ -45,7 +44,7 @@ func closeRows(rows *sql.Rows) {
 	_ = rows.Close()
 }
 
-func (ar *artworkRepository) AddArtwork(data AddArtworkData) (ntime.NTime, error) {
+func (ar *Store) AddArtwork(data AddArtworkData) (ntime.NTime, error) {
 
 	var now = ntime.Now()
 
@@ -68,7 +67,7 @@ func (ar *artworkRepository) AddArtwork(data AddArtworkData) (ntime.NTime, error
 	return now, nil
 }
 
-func (ar *artworkRepository) GetArtwork(artworkId string, requesterId string) (*Artwork, error) {
+func (ar *Store) GetArtwork(artworkId, requesterId string) (*Artwork, error) {
 
 	// get artwork metadata, ensuring a banned user is denied access
 	// with Postgres it'd make sense to update comments and reactions counts by way of a trigger
@@ -106,7 +105,7 @@ func (ar *artworkRepository) GetArtwork(artworkId string, requesterId string) (*
 	return &artwork, err
 }
 
-func (ar *artworkRepository) GetArtworkComments(artworkId string, requesterId string) ([]CommentResponse, error) {
+func (ar *Store) GetArtworkComments(artworkId, requesterId string) ([]CommentResponse, error) {
 
 	// now fetch comments; at this point it's known the user isn't banned
 	var comments = make([]CommentResponse, 0)
@@ -137,7 +136,7 @@ func (ar *artworkRepository) GetArtworkComments(artworkId string, requesterId st
 	return comments, rows.Err()
 }
 
-func (ar *artworkRepository) GetArtworkReactions(artworkId string, requesterId string) ([]ReactionResponse, error) {
+func (ar *Store) GetArtworkReactions(artworkId, requesterId string) ([]ReactionResponse, error) {
 
 	// fetch reactions, beware of package clash with reactions array
 	var reactionResponses = make([]ReactionResponse, 0)
@@ -170,11 +169,13 @@ func (ar *artworkRepository) GetArtworkReactions(artworkId string, requesterId s
 }
 
 // OwnsArtwork verifies whether a given artwork exists, wasn't deleted and is owned by the specified user
-func (ar *artworkRepository) OwnsArtwork(artworkId string, userId string) bool {
+func (ar *Store) OwnsArtwork(artworkId, userId string) bool {
 	var exists = false
-	var err = ar.Connection.QueryRow("SELECT TRUE FROM artworks WHERE id = ? AND author_id = ? AND deleted = false", artworkId, userId).Scan(&exists)
+	var err = ar.Connection.QueryRow(`
+		SELECT TRUE FROM artworks WHERE id = ? AND author_id = ? AND deleted = false`,
+		artworkId, userId,
+	).Scan(&exists)
 	return err != nil && exists
-
 }
 
 // DeleteArtwork will perform a soft delete and return a negative result in case:
@@ -183,8 +184,7 @@ func (ar *artworkRepository) OwnsArtwork(artworkId string, userId string) bool {
 //   - the artwork was previously deleted
 //
 // tk handle with errors
-func (ar *artworkRepository) DeleteArtwork(artworkId string, userId string) bool {
-
+func (ar *Store) DeleteArtwork(artworkId, userId string) bool {
 	result, err := ar.Connection.Exec(`
 		UPDATE artworks SET deleted = TRUE WHERE artworks.id = ? AND author_id = ? AND deleted = FALSE`,
 		artworkId,
@@ -200,7 +200,7 @@ func (ar *artworkRepository) DeleteArtwork(artworkId string, userId string) bool
 	return true
 }
 
-func (ar *artworkRepository) GetImageMetadata(artworkId string, requesterId string) (metadata ImageMetadata, err error) {
+func (ar *Store) GetImageMetadata(artworkId, requesterId string) (metadata ImageMetadata, err error) {
 	return metadata, ar.Connection.QueryRow(`
 		SELECT format
 		FROM   artworks
@@ -211,8 +211,7 @@ func (ar *artworkRepository) GetImageMetadata(artworkId string, requesterId stri
 	).Scan(&metadata.Format)
 }
 
-func (ar *artworkRepository) SetReaction(userId string, artworkId string, date ntime.NTime, data AddReactionRequest) error {
-
+func (ar *Store) SetReaction(userId, artworkId string, date ntime.NTime, data AddReactionRequest) error {
 	res, err := ar.Connection.Exec(`
 		INSERT INTO artwork_feedback(artwork, user, reaction, date)
 		VALUES (?, ?, ?, ?)
@@ -232,7 +231,7 @@ func (ar *artworkRepository) SetReaction(userId string, artworkId string, date n
 	return err
 }
 
-func (ar *artworkRepository) RemoveReaction(userId string, artworkId string) error {
+func (ar *Store) RemoveReaction(userId, artworkId string) error {
 	res, err := ar.Connection.Exec(`
 		DELETE FROM artwork_feedback WHERE artwork = ? AND user = ?`,
 		artworkId, userId)
@@ -250,22 +249,17 @@ func (ar *artworkRepository) RemoveReaction(userId string, artworkId string) err
 	return nil
 }
 
-func (ar *artworkRepository) AddComment(userId string, artworkId string, data AddCommentData) (id string, date ntime.NTime, err error) {
-
-	id = rest.MustGetNewUUID()
-	date = ntime.Now()
-
-	_, err = ar.Connection.Exec(`
+func (ar *Store) AddComment(userId, artworkId string, data AddCommentData) (string, ntime.NTime, error) {
+	var id = rest.MustGetNewUUID()
+	var date = ntime.Now()
+	_, err := ar.Connection.Exec(`
 		INSERT INTO artwork_comments (id, artwork, user, comment, date) VALUES (?, ?, ?, ?, ?)`,
 		id, artworkId, userId, data.Comment, date)
-
 	return id, date, err
 }
 
-func (ar *artworkRepository) DeleteComment(userId string, commentId string) error {
-
+func (ar *Store) DeleteComment(userId, commentId string) error {
 	result, err := ar.Connection.Exec(`DELETE FROM artwork_comments WHERE id = ? AND user = ?`, commentId, userId)
-
 	if err != nil {
 		return err
 	}
@@ -281,49 +275,57 @@ func (ar *artworkRepository) DeleteComment(userId string, commentId string) erro
 	return err
 }
 
-func (ar *artworkRepository) GetProfileData(userId string) (ProfileData, error) {
-
-	// fetch the user's relations
-	followers, followed, err := ar.UserRepository.GetUserRelations(userId)
-
-	if err != nil {
-		return ProfileData{}, err
-	}
-
-	// fetch the user's sorted artwork
-	// tk parametrise pagination variables
-	artworks, total, err := ar.GetUserArtworks(userId, 100, 0)
-
-	// return actual data or last error
-	return ProfileData{total, artworks, followers, followed}, err
-}
-
-// GetUserArtworks returns a slice of paginated artworks uploaded by the user, along with the total number of uploads.
-// tk distinguish between the initial profile artworks and further requests, add pagination struct
-func (ar *artworkRepository) GetUserArtworks(userId string, pageSize int, page int) (artworks []ArtworkProfilePreview, tally int, err error) {
-
-	artworks = make([]ArtworkProfilePreview, 0, 12)
+// GetUserArtworks returns paginated artworks uploaded by the target user.
+func (ar *Store) GetUserArtworks(targetAlias, requesterId string, pageData PageData) (
+	artworks []ArtworkData,
+	err error,
+) {
+	/* Fetch the artworks that were:
+	- added before the 'since' timestamp: the normal flow in reverse chronological order
+	- added after the 'latest' timestamp: those that were uploaded after the latest user request
+	- deleted before the 'since' timestamp, but not after the latest update, as they won't be included anyway */
+	artworks = make([]ArtworkData, 0)
 	rows, err := ar.Connection.Query(`
-		SELECT id, title, format, added, count(id) over() as cnt FROM artworks
-		WHERE author_id = ? ORDER BY added DESC LIMIT ? OFFSET ?`,
-		userId, pageSize, page,
+		SELECT id, title, format, added, new, deleted, coalesce(c, 0) as comments, coalesce(r, 0) as reactions FROM
+			(SELECT id, title, format, added, added > ? as new, deleted FROM artworks
+			WHERE author_id IN (SELECT id FROM users WHERE alias = ?)
+			AND ? NOT IN (SELECT target FROM bans WHERE source = artworks.author_id)
+			AND (deleted = FALSE AND added < ?)
+			OR (deleted = FALSE AND added > ?)
+			OR (deleted = TRUE AND added > ? AND added < ?)) as x
+		LEFT JOIN (SELECT artwork as id, count(artwork) as c FROM artwork_comments GROUP BY artwork) USING (id)
+		LEFT JOIN (SELECT artwork as id, count(artwork) as r FROM artwork_feedback GROUP BY artwork) USING (id)
+		ORDER BY added DESC LIMIT ?;`,
+		pageData.latest,
+		targetAlias,
+		requesterId,
+		pageData.since,
+		pageData.latest,
+		pageData.latest, pageData.since,
+		pageData.pageSize,
 	)
-
 	if err != nil {
-		return artworks, tally, err
+		return artworks, err
 	}
-
 	defer closeRows(rows)
 
 	for rows.Next() {
-		var artwork ArtworkProfilePreview
-		if err = rows.Scan(&artwork.Id, &artwork.Title, &artwork.Format, &artwork.Added, &tally); err != nil {
-			return artworks, tally, err
+		var artwork ArtworkData
+		if err = rows.Scan(
+			&artwork.Id,
+			&artwork.Title,
+			&artwork.Format,
+			&artwork.Added,
+			&artwork.New,
+			&artwork.Deleted,
+			&artwork.Comments,
+			&artwork.Reactions,
+		); err != nil {
+			return artworks, err
 		}
 		artworks = append(artworks, artwork)
 	}
-
-	return artworks, tally, rows.Err()
+	return artworks, rows.Err()
 }
 
 type StreamData struct {
@@ -332,7 +334,7 @@ type StreamData struct {
 	DeletedIds  []string
 }
 
-func (ar *artworkRepository) GetStream(userId string, since string, latest string) (data StreamData, err error) {
+func (ar *Store) GetStream(userId string, since string, latest string) (data StreamData, err error) {
 
 	// default artworks capacity set to default paginated size
 	var (

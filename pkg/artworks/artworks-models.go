@@ -118,32 +118,49 @@ type CommentResponse struct {
 type ProfileData struct {
 	// TotalArtworks refers to the total number of artworks uploaded by a user, as opposed to the ones sent in the resp.
 	TotalArtworks int
-	Artworks      []ArtworkProfilePreview
+	Artworks      []ArtworkData
 	Followers     []users.RelationData
 	FollowedUsers []users.RelationData
 }
 
-type ArtworkProfilePreview struct {
-	Id     string
-	Title  *string // the alternative is to use sql.NullString and a custom marshaller
-	Format string
-	Added  ntime.NTime
+// ArtworkData describes metadata related to each artwork, including comment, reactions aggregates
+type ArtworkData struct {
+	Id        string
+	Title     *string // the alternative is to use sql.NullString and a custom marshaller
+	Format    string
+	Added     ntime.NTime
+	Comments  int
+	Reactions int
+	New       bool
+	Deleted   bool
+}
+
+// PageData specifies pagination details for various endpoint handlers and store methods
+type PageData struct {
+	pageSize int
+	since    string
+	latest   string
 }
 
 // I wasted one hour of my life attempting to find out why my custom format wouldn't work
 // only to realise time.Parse expects specific numbers for hours, minutes, etc.
-var datesRule = validation.Date(time.RFC3339)
+var datesRules = []validation.Rule{validation.Required, validation.Date(time.RFC3339)}
+
+func ValidateDate(date string) error {
+	return validation.Validate(date, datesRules...)
+}
 
 // getStreamParams returns the values of query parameters `since` and `latest`, after validating them
+// tk replace
 func getStreamParams(streamParams url.Values) (since string, latest string, err error) {
 	// there's no need to check for both parameters when one fails
 	since = streamParams.Get("since")
-	if err = validation.Validate(since, validation.Required, datesRule); err != nil {
+	if err = validation.Validate(since, datesRules...); err != nil {
 		return since, latest, err
 	}
 
 	latest = streamParams.Get("latest")
-	if err = validation.Validate(latest, validation.Required, datesRule); err != nil {
+	if err = validation.Validate(latest, datesRules...); err != nil {
 		return since, latest, err
 	}
 

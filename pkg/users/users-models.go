@@ -78,6 +78,7 @@ func (data UpdateAliasData) Validate() error {
 	return validation.ValidateStruct(&data, validation.Field(&data.Alias, aliasRules...))
 }
 
+// ValidateUserAlias takes a candidate user alias and validates it against a set of text patterns.
 func ValidateUserAlias(alias string) error {
 	return validation.Validate(alias, aliasRules...)
 }

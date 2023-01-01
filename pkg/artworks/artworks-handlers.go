@@ -9,9 +9,11 @@ import (
 	JSON "github.com/silktrader/kvasari/pkg/json-utilities"
 	"github.com/silktrader/kvasari/pkg/ntime"
 	. "github.com/silktrader/kvasari/pkg/rest"
+	"github.com/silktrader/kvasari/pkg/users"
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 )
@@ -22,7 +24,7 @@ const maxFileUploadSize = 41943040
 // acceptableFileTypes describes which file types can be uploaded by users
 var acceptableFileTypes = [...]string{"image/jpeg", "image/png", "image/webp"}
 
-func RegisterHandlers(engine Engine, ar ArtworkRepository, aur auth.IRepository) {
+func RegisterHandlers(engine Engine, ar Storer, aur auth.IRepository) {
 
 	var authenticated = auth.Auth(aur)
 
@@ -31,6 +33,7 @@ func RegisterHandlers(engine Engine, ar ArtworkRepository, aur auth.IRepository)
 	engine.Delete("/artworks/:artworkId", deleteArtwork(ar), authenticated)
 	engine.Get("/artworks/:artworkId", getArtwork(ar), authenticated)
 	engine.Get("/artworks/:artworkId/image", getArtworkImage(ar), authenticated)
+	engine.Get("/artworks", getArtworks(ar), authenticated)
 
 	// comments
 	engine.Post("/artworks/:artworkId/comments", addComment(ar), authenticated)
@@ -43,7 +46,6 @@ func RegisterHandlers(engine Engine, ar ArtworkRepository, aur auth.IRepository)
 	engine.Get("/artworks/:artworkId/reactions", getArtworkReactions(ar), authenticated)
 
 	// user specific aggregates
-	engine.Get("/users/:alias/profile", getProfile(ar), authenticated)
 	engine.Get("/users/:alias/stream", getStream(ar), authenticated)
 }
 
@@ -62,7 +64,7 @@ func getFormat(imageType string) ImageFormat {
 	}
 }
 
-func addArtwork(ar ArtworkRepository) http.HandlerFunc {
+func addArtwork(ar Storer) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
 		// ensure that the uploader alias matches the authenticated user's one
@@ -171,7 +173,7 @@ func addArtwork(ar ArtworkRepository) http.HandlerFunc {
 }
 
 // deleteArtwork handles the authenticated DELETE "/artworks/:artworkId" route
-func deleteArtwork(ar ArtworkRepository) http.HandlerFunc {
+func deleteArtwork(ar Storer) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
 		// issues a bad request regardless of authorisation issues to deny information about existing resources
@@ -184,7 +186,7 @@ func deleteArtwork(ar ArtworkRepository) http.HandlerFunc {
 }
 
 // getArtwork handles the authenticated GET "/artworks/:artworkId" route and provides an artwork's metadata
-func getArtwork(ar ArtworkRepository) http.HandlerFunc {
+func getArtwork(ar Storer) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
 		switch response, err := ar.GetArtwork(GetParam(request, "artworkId"), auth.MustGetUser(request).Id); {
@@ -198,7 +200,7 @@ func getArtwork(ar ArtworkRepository) http.HandlerFunc {
 	}
 }
 
-func getArtworkImage(ar ArtworkRepository) http.HandlerFunc {
+func getArtworkImage(ar Storer) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		var artworkId = GetParam(request, "artworkId")
 		if metadata, err := ar.GetImageMetadata(artworkId, auth.MustGetUser(request).Id); err == nil {
@@ -209,8 +211,38 @@ func getArtworkImage(ar ArtworkRepository) http.HandlerFunc {
 	}
 }
 
+// getArtworks handles the authenticated GET "/artworks" route, with parameters: "alias", "since" and "latest"
+func getArtworks(ar Storer) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+		// fetch and validate required parameters
+		author, since, latest, err := getValidateArtworkParameters(request.URL.Query())
+		if err != nil {
+			JSON.ValidationError(writer, err)
+		} else if artworks, e := ar.GetUserArtworks(author, auth.MustGetUser(request).Id, PageData{12, since, latest}); e != nil {
+			JSON.InternalServerError(writer, e)
+		} else {
+			JSON.Ok(writer, artworks)
+		}
+	}
+}
+
+// getValidateArtworkParameters ensures that all required parameters are present and abide to validation rules.
+// There's no need to check for the remaining parameters when one fails.
+func getValidateArtworkParameters(params url.Values) (alias, since, latest string, err error) {
+	alias = params.Get("author")
+	if err = users.ValidateUserAlias(alias); err != nil {
+		return alias, since, latest, err
+	}
+	since = params.Get("since")
+	if err = ValidateDate(since); err != nil {
+		return alias, since, latest, err
+	}
+	latest = params.Get("latest")
+	return alias, since, latest, ValidateDate(latest)
+}
+
 // setReaction handles the authenticated PUT "/artworks/:artworkId/reactions/:alias" route
-func setReaction(ar ArtworkRepository) http.HandlerFunc {
+func setReaction(ar Storer) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
 		// the path user must match the authorised one
@@ -245,7 +277,7 @@ func setReaction(ar ArtworkRepository) http.HandlerFunc {
 }
 
 // removeReaction handles the DELETE "/artworks/:artworkId/reactions/:alias" route
-func removeReaction(ar ArtworkRepository) http.HandlerFunc {
+func removeReaction(ar Storer) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
 		// the alias must match the authorised one
@@ -266,7 +298,7 @@ func removeReaction(ar ArtworkRepository) http.HandlerFunc {
 }
 
 // addComment handles the POST "/artworks/:artworkId/comments route
-func addComment(ar ArtworkRepository) http.HandlerFunc {
+func addComment(ar Storer) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
 		data, err := JSON.DecodeValidate[AddCommentData](request)
@@ -294,7 +326,7 @@ func addComment(ar ArtworkRepository) http.HandlerFunc {
 }
 
 // deleteComment handles the authenticated DELETE "/artworks/:artworkId/comments/:commentId" route
-func deleteComment(ar ArtworkRepository) http.HandlerFunc {
+func deleteComment(ar Storer) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if err := ar.DeleteComment(auth.MustGetUser(request).Id, GetParam(request, "commentId")); err == nil {
 			JSON.NoContent(writer)
@@ -307,7 +339,7 @@ func deleteComment(ar ArtworkRepository) http.HandlerFunc {
 }
 
 // getArtworkComments handles the authenticated GET "/artworks/:artworkId/comments" route
-func getArtworkComments(ar ArtworkRepository) http.HandlerFunc {
+func getArtworkComments(ar Storer) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if comments, err := ar.GetArtworkComments(GetParam(request, "artworkId"), auth.MustGetUser(request).Id); err == nil {
 			JSON.Ok(writer, comments)
@@ -318,7 +350,7 @@ func getArtworkComments(ar ArtworkRepository) http.HandlerFunc {
 }
 
 // getArtworkReactions handles the authenticated GET "/artworks/:artworkId/reactions" route
-func getArtworkReactions(ar ArtworkRepository) http.HandlerFunc {
+func getArtworkReactions(ar Storer) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if reacts, err := ar.GetArtworkReactions(GetParam(request, "artworkId"), auth.MustGetUser(request).Id); err == nil {
 			JSON.Ok(writer, reacts)
@@ -328,26 +360,8 @@ func getArtworkReactions(ar ArtworkRepository) http.HandlerFunc {
 	}
 }
 
-// getProfile handles the authenticated GET "/users/:alias/profile" route
-func getProfile(ar ArtworkRepository) http.HandlerFunc {
-	return func(writer http.ResponseWriter, request *http.Request) {
-		// check whether the user has legitimate access to the route
-		var user = auth.MustGetUser(request)
-		if user.Alias != GetParam(request, "alias") {
-			JSON.Forbidden(writer)
-			return
-		}
-
-		if profile, err := ar.GetProfileData(user.Id); err == nil {
-			JSON.Ok(writer, profile)
-		} else {
-			JSON.InternalServerError(writer, err) // could disambiguate errors given the elaborate query
-		}
-	}
-}
-
 // getStream handles the authenticated GET "/users/:alias/stream?since=date&latest=date" route
-func getStream(ar ArtworkRepository) http.HandlerFunc {
+func getStream(ar Storer) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		// check whether the user has legitimate access to the route
 		var user = auth.MustGetUser(request)

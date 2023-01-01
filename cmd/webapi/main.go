@@ -115,10 +115,10 @@ func run() error {
 	// tk look into passing pointers
 	var authRepository = auth.NewRepository(storage.Connection)
 	var usersRepository = users.NewRepository(storage.Connection)
-	var artworksRepository = artworks.NewRepository(storage.Connection, usersRepository)
+	var artworksStore = artworks.NewStore(storage.Connection, usersRepository)
 
 	users.RegisterHandlers(e, usersRepository, authRepository)
-	artworks.RegisterHandlers(e, artworksRepository, authRepository)
+	artworks.RegisterHandlers(e, artworksStore, authRepository)
 
 	e.ServeFiles("/static/*filepath", http.Dir("static"))
 
