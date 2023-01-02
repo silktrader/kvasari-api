@@ -229,7 +229,7 @@ func getArtworks(ar Storer) http.HandlerFunc {
 // getValidateArtworkParameters ensures that all required parameters are present and abide to validation rules.
 // There's no need to check for the remaining parameters when one fails.
 func getValidateArtworkParameters(params url.Values) (alias, since, latest string, err error) {
-	alias = params.Get("author")
+	alias = params.Get("artist")
 	if err = users.ValidateUserAlias(alias); err != nil {
 		return alias, since, latest, err
 	}

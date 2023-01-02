@@ -123,6 +123,18 @@ type ProfileData struct {
 	FollowedUsers []users.RelationData
 }
 
+/*
+UserArtworks contains:
+  - requested artworks, matching the provided timestamps and target user
+  - new artworks uploaded after the user's last request
+  - the IDs of artworks deleted since the last request
+*/
+type UserArtworks struct {
+	Requested []ArtworkData
+	New       []ArtworkData
+	Deleted   []string
+}
+
 // ArtworkData describes metadata related to each artwork, including comment, reactions aggregates
 type ArtworkData struct {
 	Id        string
@@ -131,8 +143,6 @@ type ArtworkData struct {
 	Added     ntime.NTime
 	Comments  int
 	Reactions int
-	New       bool
-	Deleted   bool
 }
 
 // PageData specifies pagination details for various endpoint handlers and store methods

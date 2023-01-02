@@ -22,7 +22,7 @@ type Storer interface {
 	RemoveReaction(userId, artworkId string) error
 	GetArtworkReactions(artworkId, requesterId string) ([]ReactionResponse, error)
 
-	GetUserArtworks(userAlias, requesterId string, pageData PageData) ([]ArtworkData, error)
+	GetUserArtworks(userAlias, requesterId string, pageData PageData) (UserArtworks, error)
 	GetStream(userId, since, latest string) (data StreamData, err error)
 }
 
@@ -275,16 +275,14 @@ func (ar *Store) DeleteComment(userId, commentId string) error {
 	return err
 }
 
-// GetUserArtworks returns paginated artworks uploaded by the target user.
-func (ar *Store) GetUserArtworks(targetAlias, requesterId string, pageData PageData) (
-	artworks []ArtworkData,
-	err error,
-) {
-	/* Fetch the artworks that were:
-	- added before the 'since' timestamp: the normal flow in reverse chronological order
-	- added after the 'latest' timestamp: those that were uploaded after the latest user request
-	- deleted before the 'since' timestamp, but not after the latest update, as they won't be included anyway */
-	artworks = make([]ArtworkData, 0)
+/*
+GetUserArtworks returns paginated artworks uploaded by the target user, in reverse chronological order:
+
+  - artworks added before the 'since' timestamp
+  - artworks added after the 'latest' timestamp; those that were uploaded after the latest user request
+  - the IDs of artworks deleted before pageData.since but after pageData.latest
+*/
+func (ar *Store) GetUserArtworks(targetAlias, requesterId string, pageData PageData) (UserArtworks, error) {
 	rows, err := ar.Connection.Query(`
 		SELECT id, title, format, added, new, deleted, coalesce(c, 0) as comments, coalesce(r, 0) as reactions FROM
 			(SELECT id, title, format, added, added > ? as new, deleted FROM artworks
@@ -305,9 +303,17 @@ func (ar *Store) GetUserArtworks(targetAlias, requesterId string, pageData PageD
 		pageData.pageSize,
 	)
 	if err != nil {
-		return artworks, err
+		return UserArtworks{}, err
 	}
 	defer closeRows(rows)
+
+	// default artworks capacity set to default paginated size
+	var (
+		requested         = make([]ArtworkData, 0, 12)
+		newArtworks       = make([]ArtworkData, 0)
+		deleted           = make([]string, 0)
+		isNew, wasDeleted bool
+	)
 
 	for rows.Next() {
 		var artwork ArtworkData
@@ -316,16 +322,22 @@ func (ar *Store) GetUserArtworks(targetAlias, requesterId string, pageData PageD
 			&artwork.Title,
 			&artwork.Format,
 			&artwork.Added,
-			&artwork.New,
-			&artwork.Deleted,
+			&isNew,
+			&wasDeleted,
 			&artwork.Comments,
 			&artwork.Reactions,
 		); err != nil {
-			return artworks, err
+			return UserArtworks{}, err
 		}
-		artworks = append(artworks, artwork)
+		if isNew {
+			newArtworks = append(newArtworks, artwork)
+		} else if wasDeleted {
+			deleted = append(deleted, artwork.Id)
+		} else {
+			requested = append(requested, artwork)
+		}
 	}
-	return artworks, rows.Err()
+	return UserArtworks{requested, newArtworks, deleted}, rows.Err()
 }
 
 type StreamData struct {
