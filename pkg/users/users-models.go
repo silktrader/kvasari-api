@@ -94,15 +94,17 @@ func getValidateAlias(request *http.Request) (alias string, err error) {
 
 // UserDetails describes data returned by the getDetails() handler and repository method
 type UserDetails struct {
-	Name      string
-	Email     string
-	Followers int
-	Following int
-	Artworks  int
-	Comments  int
-	Reactions int
-	Created   ntime.NTime
-	Updated   ntime.NTime
+	Name           string
+	Email          string
+	Followers      int
+	Following      int
+	Artworks       int
+	Comments       int
+	Reactions      int
+	FollowedByUser bool
+	FollowsUser    bool
+	Created        ntime.NTime
+	Updated        ntime.NTime
 }
 
 // filtered users GET query parameters validation

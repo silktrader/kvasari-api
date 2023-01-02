@@ -243,28 +243,39 @@ func (ur *userRepository) GetUserRelations(userId string) ([]RelationData, []Rel
 }
 
 func (ur *userRepository) GetDetails(alias string, requesterId string) (details UserDetails, err error) {
-
-	return details, ur.Connection.QueryRow(`
+	if err = ur.Connection.QueryRow(`
 		SELECT
 			name,
 			email,
 			created,
 			updated,
+			(SELECT EXISTS (SELECT TRUE FROM followers WHERE follower = users.id AND target = ?)) as followsUser,
+			(SELECT EXISTS (SELECT TRUE FROM followers WHERE follower = ? AND target = users.id)) as followedByUser,
 			(SELECT count(follower) FROM followers WHERE target = users.id) as followers,
 			(SELECT count(target) FROM followers WHERE follower = users.id) as following,
 			(SELECT count(id) FROM artworks WHERE author_id = users.id) as artworks,
 			(SELECT count(user) FROM artwork_comments WHERE user = users.id) as comments,
 			(SELECT count(user) FROM artwork_feedback WHERE user = users.id) as reactions
 		FROM users
-		WHERE alias = ? AND ? NOT IN (SELECT target FROM bans WHERE source = users.id)`, alias, requesterId).Scan(
+		WHERE alias = ? AND ? NOT IN (SELECT target FROM bans WHERE source = users.id)`,
+		requesterId,
+		requesterId,
+		alias,
+		requesterId,
+	).Scan(
 		&details.Name,
 		&details.Email,
 		&details.Created,
 		&details.Updated,
+		&details.FollowsUser,
+		&details.FollowedByUser,
 		&details.Followers,
 		&details.Following,
 		&details.Artworks,
 		&details.Comments,
 		&details.Reactions,
-	)
+	); errors.Is(err, sql.ErrNoRows) {
+		return details, ErrNotFound
+	}
+	return details, err
 }

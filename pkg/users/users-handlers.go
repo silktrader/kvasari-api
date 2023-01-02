@@ -182,10 +182,12 @@ func getDetails(ur UserRepository) http.HandlerFunc {
 		}
 
 		// fetch user details or return a not found message, even in case of bans
-		if details, err := ur.GetDetails(alias, auth.MustGetUser(request).Id); err == nil {
+		if details, e := ur.GetDetails(alias, auth.MustGetUser(request).Id); e == nil {
 			JSON.Ok(writer, details)
-		} else {
+		} else if errors.Is(e, ErrNotFound) {
 			JSON.NotFound(writer, "user not found or unavailable")
+		} else {
+			JSON.InternalServerError(writer, e)
 		}
 	}
 }
