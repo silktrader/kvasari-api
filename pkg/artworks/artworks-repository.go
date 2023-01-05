@@ -216,7 +216,7 @@ func (ar *Store) GetImageMetadata(artworkId, requesterId string) (metadata Image
 		FROM   artworks
 		WHERE  id = ?
 		       AND deleted = false
-		       AND ( author_id = ? OR author_id IN (SELECT target FROM followers WHERE follower = ?));`,
+		       AND ? NOT IN (SELECT target FROM bans WHERE source = artworks.author_id)`,
 		artworkId, requesterId, requesterId,
 	).Scan(&metadata.Format)
 }
