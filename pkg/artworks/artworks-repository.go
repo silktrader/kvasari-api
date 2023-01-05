@@ -11,7 +11,7 @@ import (
 type Storer interface {
 	AddArtwork(data AddArtworkData) (ntime.NTime, error)
 	DeleteArtwork(artworkId, userId string) bool
-	GetArtwork(artworkId, requesterId string) (*Artwork, error)
+	GetArtworkData(artworkId, requesterId string) (*Artwork, error)
 	GetImageMetadata(artworkId, requesterId string) (ImageMetadata, error)
 
 	AddComment(userId, artworkId string, data AddCommentData) (string, ntime.NTime, error)
@@ -67,23 +67,33 @@ func (ar *Store) AddArtwork(data AddArtworkData) (ntime.NTime, error) {
 	return now, nil
 }
 
-func (ar *Store) GetArtwork(artworkId, requesterId string) (*Artwork, error) {
+/*
+GetArtworkData fetches artwork metadata, ensuring banned users are denied access.
 
-	// get artwork metadata, ensuring a banned user is denied access
-	// with Postgres it'd make sense to update comments and reactions counts by way of a trigger
-	// SQLite blocks at every write though, so bursts of comments and reactions (writes) can be problematic
-	var artwork = Artwork{}
-	err := ar.Connection.QueryRow(`
-		SELECT alias, name, title, type, format, description, year, location,
-		       artworks.created, added, artworks.updated,
-		       (SELECT count(*) FROM artwork_comments WHERE artwork = ?) as comments,
-		       (SELECT count(*) FROM artwork_feedback WHERE artwork = ?) as reactions
+With traditional relational databases it'd be preferable to update comments and reactions counts by way of triggers.
+SQLite blocks at every write though, so bursts of comments and reactions (writes) aren't ideal.
+*/
+func (ar *Store) GetArtworkData(artworkId, requesterId string) (*Artwork, error) {
+	var artwork = Artwork{
+		Author: ArtworkAuthor{},
+	}
+	if err := ar.Connection.QueryRow(`
+		SELECT
+		    alias, name,
+		    (SELECT EXISTS (SELECT TRUE x FROM followers WHERE follower = users.id AND target = ?) x) as followsUser,
+			(SELECT EXISTS (SELECT TRUE x FROM followers WHERE follower = ? AND target = users.id) x) as followedByUser,
+		    title, type, format, description, year, location,
+		    artworks.created, added, artworks.updated,
+		    (SELECT count(*) x FROM artwork_comments WHERE artwork = ?) as comments,
+		    (SELECT count(*) x FROM artwork_feedback WHERE artwork = ?) as reactions
 		FROM artworks JOIN users ON artworks.author_id = users.id
 		WHERE artworks.id = ? AND NOT deleted
 		AND ? NOT IN (SELECT target FROM bans WHERE source = artworks.author_id)`,
-		artworkId, artworkId, artworkId, requesterId).Scan(
-		&artwork.AuthorAlias,
-		&artwork.AuthorName,
+		requesterId, requesterId, artworkId, artworkId, artworkId, requesterId).Scan(
+		&artwork.Author.Alias,
+		&artwork.Author.Name,
+		&artwork.Author.FollowsUser,
+		&artwork.Author.FollowedByUser,
 		&artwork.Title,
 		&artwork.Type,
 		&artwork.Format,
@@ -95,14 +105,14 @@ func (ar *Store) GetArtwork(artworkId, requesterId string) (*Artwork, error) {
 		&artwork.Updated,
 		&artwork.Comments,
 		&artwork.Reactions,
-	)
-
-	// no need to unwrap errors actually
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrNotFound
+	); err != nil {
+		// no need to unwrap errors actually
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
 	}
-
-	return &artwork, err
+	return &artwork, nil
 }
 
 func (ar *Store) GetArtworkComments(artworkId, requesterId string) ([]CommentResponse, error) {

@@ -25,13 +25,12 @@ const maxFileUploadSize = 41943040
 var acceptableFileTypes = [...]string{"image/jpeg", "image/png", "image/webp"}
 
 func RegisterHandlers(engine Engine, ar Storer, aur auth.IRepository) {
-
 	var authenticated = auth.Auth(aur)
 
 	// artworks management
 	engine.Post("/artworks", addArtwork(ar), authenticated)
 	engine.Delete("/artworks/:artworkId", deleteArtwork(ar), authenticated)
-	engine.Get("/artworks/:artworkId", getArtwork(ar), authenticated)
+	engine.Get("/artworks/:artworkId/data", getArtworkData(ar), authenticated)
 	engine.Get("/artworks/:artworkId/image", getArtworkImage(ar), authenticated)
 	engine.Get("/artworks", getArtworks(ar), authenticated)
 
@@ -175,7 +174,6 @@ func addArtwork(ar Storer) http.HandlerFunc {
 // deleteArtwork handles the authenticated DELETE "/artworks/:artworkId" route
 func deleteArtwork(ar Storer) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
-
 		// issues a bad request regardless of authorisation issues to deny information about existing resources
 		if deleted := ar.DeleteArtwork(GetParam(request, "artworkId"), auth.MustGetUser(request).Id); deleted {
 			JSON.NoContent(writer)
@@ -185,11 +183,10 @@ func deleteArtwork(ar Storer) http.HandlerFunc {
 	}
 }
 
-// getArtwork handles the authenticated GET "/artworks/:artworkId" route and provides an artwork's metadata
-func getArtwork(ar Storer) http.HandlerFunc {
+// getArtworkData handles the authenticated GET "/artworks/:artworkId/data" route and provides an artwork's metadata
+func getArtworkData(ar Storer) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
-
-		switch response, err := ar.GetArtwork(GetParam(request, "artworkId"), auth.MustGetUser(request).Id); {
+		switch response, err := ar.GetArtworkData(GetParam(request, "artworkId"), auth.MustGetUser(request).Id); {
 		case errors.Is(err, ErrNotFound):
 			JSON.NotFound(writer, "Artwork not found")
 		case err == nil:
@@ -200,6 +197,7 @@ func getArtwork(ar Storer) http.HandlerFunc {
 	}
 }
 
+// getArtworkImage handles the authenticated GET "/artworks/:artworkId/image" route and serves binary data.
 func getArtworkImage(ar Storer) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		var artworkId = GetParam(request, "artworkId")

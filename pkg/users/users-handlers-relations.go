@@ -13,7 +13,7 @@ import (
 // getFollowers handles the unauthenticated "/users/:alias/followers" route, currently used for debugging purposes.
 func getFollowers(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
-
+		// tk use preemptive validation to cut down DB queries
 		var targetAlias = rest.GetParam(request, "alias")
 
 		// check whether the user exists for gracious feedback
@@ -23,20 +23,17 @@ func getFollowers(ur UserRepository) http.HandlerFunc {
 		}
 
 		// populate the slice of followers
-		followers, err := ur.GetFollowers(targetAlias)
-		if err != nil {
+		if followers, err := ur.GetFollowers(targetAlias); err != nil {
 			JSON.InternalServerError(writer, err)
-			return
+		} else {
+			JSON.Ok(writer, followers)
 		}
-
-		JSON.Ok(writer, followers)
 	}
 }
 
 // followUser handles the POST "/users/:alias/followed" route
 func followUser(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
-
 		// ensure that the follower's alias matches the authenticated user's
 		var follower = auth.MustGetUser(request)
 		if follower.Alias != rest.GetParam(request, "alias") {

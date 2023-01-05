@@ -32,9 +32,9 @@ var artworkTypes = []interface{}{Painting, Drawing, Sculpture, Architecture, Pho
 
 // var imageFormats = []interface{}{PNG, JPG, WEBP}
 
+// Artwork describes all the publicly available metadata relevant to an artwork.
 type Artwork struct {
-	AuthorName  string
-	AuthorAlias string
+	Author      ArtworkAuthor
 	Title       *string
 	Description *string
 	Format      string
@@ -46,6 +46,14 @@ type Artwork struct {
 	Updated     ntime.NTime
 	Comments    int
 	Reactions   int
+}
+
+// ArtworkAuthor holds data relevant for artwork data responses.
+type ArtworkAuthor struct {
+	Alias          string
+	Name           string
+	FollowsUser    bool
+	FollowedByUser bool
 }
 
 type AddArtworkData struct {
@@ -135,7 +143,7 @@ type UserArtworks struct {
 	Deleted   []string
 }
 
-// ArtworkData describes metadata related to each artwork, including comment, reactions aggregates
+// ArtworkData describes a preview of the metadata related to each artwork, including comment, reactions aggregates.
 type ArtworkData struct {
 	Id        string
 	Title     *string // the alternative is to use sql.NullString and a custom marshaller
