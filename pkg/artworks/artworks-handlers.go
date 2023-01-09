@@ -33,6 +33,7 @@ func RegisterHandlers(engine Engine, ar Storer, aur auth.IRepository) {
 	engine.Get("/artworks/:artworkId/data", getArtworkData(ar), authenticated)
 	engine.Get("/artworks/:artworkId/image", getArtworkImage(ar), authenticated)
 	engine.Get("/artworks", getArtworks(ar), authenticated)
+	engine.Put("/artworks/:artworkId/title", setTitle(ar), authenticated)
 
 	// comments
 	engine.Post("/artworks/:artworkId/comments", addComment(ar), authenticated)
@@ -242,7 +243,6 @@ func getValidateArtworkParameters(params url.Values) (alias, since, latest strin
 // setReaction handles the authenticated PUT "/artworks/:artworkId/reactions/:alias" route
 func setReaction(ar Storer) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
-
 		// the path user must match the authorised one
 		var user = auth.MustGetUser(request)
 		if user.Alias != GetParam(request, "alias") {
@@ -382,5 +382,33 @@ func getStream(ar Storer) http.HandlerFunc {
 		}
 
 		JSON.Ok(writer, stream)
+	}
+}
+
+// setTitle handles the authenticated PUT "/artworks/:artworkId/title" route
+func setTitle(ar Storer) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+		// fetch and validate parameters
+		var artworkId = GetParam(request, "artworkId")
+		if !isValidArtworkId(artworkId) {
+			JSON.BadRequestWithMessage(writer, "invalid artwork ID provided")
+			return
+		}
+
+		// fetch and validate the new title's data
+		data, err := JSON.DecodeValidate[UpdateArtworkTitleData](request)
+		if err != nil {
+			JSON.ValidationError(writer, err)
+			return
+		}
+
+		// attempt to change the title
+		if err = ar.SetArtworkTitle(artworkId, auth.MustGetUser(request).Id, data.Title); err == nil {
+			JSON.NoContent(writer)
+		} else if errors.Is(err, ErrNotModified) {
+			JSON.NotFound(writer, "Unauthorised action or resource not found")
+		} else {
+			JSON.InternalServerError(writer, err)
+		}
 	}
 }

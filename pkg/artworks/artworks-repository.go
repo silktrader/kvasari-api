@@ -13,6 +13,7 @@ type Storer interface {
 	DeleteArtwork(artworkId, userId string) bool
 	GetArtworkData(artworkId, requesterId string) (*Artwork, error)
 	GetImageMetadata(artworkId, requesterId string) (ImageMetadata, error)
+	SetArtworkTitle(artworkId, requesterId, title string) error
 
 	AddComment(userId, artworkId string, data AddCommentData) (string, ntime.NTime, error)
 	DeleteComment(userId, commentId string) error
@@ -210,6 +211,23 @@ func (ar *Store) DeleteArtwork(artworkId, userId string) bool {
 	return true
 }
 
+func (ar *Store) SetArtworkTitle(artworkId, userId, newTitle string) error {
+	// note that the updated attribute is handled by triggers
+	res, err := ar.Connection.Exec(`
+		UPDATE artworks SET title = ? WHERE id = ? AND author_id = ?`,
+		newTitle, artworkId, userId)
+	if err != nil {
+		return err
+	}
+	if affected, e := res.RowsAffected(); e != nil {
+		return e
+	} else if affected == 0 {
+		return ErrNotModified
+	}
+	return nil
+}
+
+// GetImageMetadata returns the necessary data to locate and serve binary image files.
 func (ar *Store) GetImageMetadata(artworkId, requesterId string) (metadata ImageMetadata, err error) {
 	return metadata, ar.Connection.QueryRow(`
 		SELECT format
@@ -217,7 +235,7 @@ func (ar *Store) GetImageMetadata(artworkId, requesterId string) (metadata Image
 		WHERE  id = ?
 		       AND deleted = false
 		       AND ? NOT IN (SELECT target FROM bans WHERE source = artworks.author_id)`,
-		artworkId, requesterId, requesterId,
+		artworkId, requesterId,
 	).Scan(&metadata.Format)
 }
 
@@ -231,14 +249,12 @@ func (ar *Store) SetReaction(userId, artworkId string, date ntime.NTime, data Ad
 	if err != nil {
 		return err
 	}
-
-	if changed, err := res.RowsAffected(); err != nil {
-		return err
+	if changed, e := res.RowsAffected(); e != nil {
+		return e
 	} else if changed == 0 {
 		return ErrNotModified
 	}
-
-	return err
+	return nil
 }
 
 func (ar *Store) RemoveReaction(userId, artworkId string) error {
@@ -357,7 +373,6 @@ type StreamData struct {
 }
 
 func (ar *Store) GetStream(userId string, since string, latest string) (data StreamData, err error) {
-
 	// default artworks capacity set to default paginated size
 	var (
 		artworks    = make([]ArtworkStreamPreview, 0, 12)

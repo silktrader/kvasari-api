@@ -6,6 +6,7 @@ import (
 	"github.com/silktrader/kvasari/pkg/ntime"
 	"github.com/silktrader/kvasari/pkg/users"
 	"net/url"
+	"regexp"
 	"time"
 )
 
@@ -68,6 +69,18 @@ func (data AddArtworkData) Validate() error {
 	return validation.ValidateStruct(&data,
 		validation.Field(&data.Type, validation.Required, validation.In(artworkTypes...)),
 		validation.Field(&data.Format, validation.Required, is.URL),
+	)
+}
+
+// Edit and artwork title
+
+type UpdateArtworkTitleData struct {
+	Title string
+}
+
+func (data UpdateArtworkTitleData) Validate() error {
+	return validation.ValidateStruct(&data,
+		validation.Field(&data.Title, validation.Required, validation.Length(0, 150)),
 	)
 }
 
@@ -168,7 +181,30 @@ func ValidateDate(date string) error {
 	return validation.Validate(date, datesRules...)
 }
 
-// getStreamParams returns the values of query parameters `since` and `latest`, after validating them
+// Stream Responses
+
+type ArtworkStreamPreview struct {
+	Id          string
+	Title       *string
+	AuthorAlias string
+	AuthorName  string
+	Format      string
+	Reactions   int
+	Comments    int
+	Added       ntime.NTime
+}
+
+// Images metadata, to be expanded
+
+type ImageMetadata struct {
+	Format string
+}
+
+/* Route parameters validation.
+The following functions ensure the correct format of route parameters, and catch possible errors without
+having to resort to DB queries.*/
+
+// getStreamParams returns the values of query parameters `since` and `latest`, after validating them.
 // tk replace
 func getStreamParams(streamParams url.Values) (since string, latest string, err error) {
 	// there's no need to check for both parameters when one fails
@@ -185,21 +221,8 @@ func getStreamParams(streamParams url.Values) (since string, latest string, err 
 	return since, latest, err
 }
 
-// Stream Responses
-
-type ArtworkStreamPreview struct {
-	Id          string
-	Title       string
-	AuthorAlias string
-	AuthorName  string
-	Format      string
-	Reactions   int
-	Comments    int
-	Added       ntime.NTime
-}
-
-// Images metadata, to be expanded
-
-type ImageMetadata struct {
-	Format string
+// validateArtworkIdParam verified that the provided ID it's a valid SHA-256 hash.
+func isValidArtworkId(artworkId string) bool {
+	match, err := regexp.MatchString("^[a-f0-9]{64}$", artworkId)
+	return err == nil && match
 }

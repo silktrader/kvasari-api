@@ -77,7 +77,6 @@ func followUser(ur UserRepository) http.HandlerFunc {
 // unfollowUser handles the DELETE "/users/:alias/followed/:target" route
 func unfollowUser(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
-
 		// ensure that the follower's alias matches the authenticated user's
 		var follower = auth.MustGetUser(request)
 		if follower.Alias != rest.GetParam(request, "alias") {
@@ -111,7 +110,6 @@ func unfollowUser(ur UserRepository) http.HandlerFunc {
 // banUser handles the POST "/users/:alias/bans" route
 func banUser(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
-
 		// ensure that the banning user matches the authenticated one
 		var source = auth.MustGetUser(request)
 		if source.Alias != rest.GetParam(request, "alias") {
@@ -150,7 +148,6 @@ func banUser(ur UserRepository) http.HandlerFunc {
 // unbanUser handles the DELETE "/users/:alias/bans/:target" route
 func unbanUser(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
-
 		// ensure that the user taking action is authorised
 		var source = auth.MustGetUser(request)
 		if source.Alias != rest.GetParam(request, "alias") {
@@ -184,7 +181,6 @@ func unbanUser(ur UserRepository) http.HandlerFunc {
 // getBans handles the GET "/users/:alias/bans" route
 func getBans(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
-
 		// check whether the user has legitimate access to the route
 		var user = auth.MustGetUser(request)
 		if user.Alias != rest.GetParam(request, "alias") {
