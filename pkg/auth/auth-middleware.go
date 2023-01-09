@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"github.com/gofrs/uuid"
 	"net/http"
 	"strings"
 )
@@ -50,7 +51,7 @@ func parseBearer(request *http.Request) (string, error) {
 	var header = request.Header.Get("Authorization")
 	if strings.HasPrefix(header, "Bearer ") {
 		var userId = header[7:]
-		if len(userId) == 36 {
+		if _, err := uuid.FromString(userId); err == nil {
 			return userId, nil
 		}
 	}
