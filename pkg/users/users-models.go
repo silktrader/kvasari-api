@@ -103,6 +103,7 @@ type UserDetails struct {
 	Reactions      int
 	FollowedByUser bool
 	FollowsUser    bool
+	BlockedByUser  bool
 	Created        ntime.NTime
 	Updated        ntime.NTime
 }

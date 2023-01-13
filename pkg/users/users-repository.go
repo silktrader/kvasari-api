@@ -251,6 +251,7 @@ func (ur *userRepository) GetDetails(alias string, requesterId string) (details 
 			updated,
 			(SELECT EXISTS (SELECT TRUE FROM followers WHERE follower = users.id AND target = ?)) as followsUser,
 			(SELECT EXISTS (SELECT TRUE FROM followers WHERE follower = ? AND target = users.id)) as followedByUser,
+			(SELECT EXISTS (SELECT TRUE FROM bans WHERE target = users.id AND source = ?)) as blockedByUser,
 			(SELECT count(follower) FROM followers WHERE target = users.id) as followers,
 			(SELECT count(target) FROM followers WHERE follower = users.id) as following,
 			(SELECT count(id) FROM artworks WHERE author_id = users.id) as artworks,
@@ -258,6 +259,7 @@ func (ur *userRepository) GetDetails(alias string, requesterId string) (details 
 			(SELECT count(user) FROM artwork_feedback WHERE user = users.id) as reactions
 		FROM users
 		WHERE alias = ? AND ? NOT IN (SELECT target FROM bans WHERE source = users.id)`,
+		requesterId,
 		requesterId,
 		requesterId,
 		alias,
@@ -269,6 +271,7 @@ func (ur *userRepository) GetDetails(alias string, requesterId string) (details 
 		&details.Updated,
 		&details.FollowsUser,
 		&details.FollowedByUser,
+		&details.BlockedByUser,
 		&details.Followers,
 		&details.Following,
 		&details.Artworks,
