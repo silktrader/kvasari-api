@@ -138,7 +138,6 @@ func updateAlias(ur UserRepository) http.HandlerFunc {
 // No passwords are checked, only mere user existence.
 func login(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
-
 		const message = "Authentication failed due to wrong credentials."
 		sessionData, err := JSON.DecodeValidate[SessionData](request)
 		if err != nil {

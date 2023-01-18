@@ -32,14 +32,23 @@ type Store struct {
 	UserStore  users.UserRepository
 }
 
-func NewStore(connection *sql.DB, userStore users.UserRepository) *Store {
-	return &Store{connection, userStore}
-}
-
 var (
 	ErrNotFound    = errors.New("not found")
 	ErrNotModified = errors.New("not modified")
 )
+
+// NewStore returns an artwork repository, or store, which wraps the necessary dependencies
+// and provides relevant interface implementations.
+// Soft-deleted artworks are cleaned up on initialisation.
+func NewStore(connection *sql.DB, userStore users.UserRepository) *Store {
+	// ensure that previously soft-deleted artworks are wiped out, on initialisation, for all users
+	// the event is designed to occur at every, hopefully rare, server restart, as well as through scheduled tasks
+	// errors are safe to be ignored, but it remains debatable to include side effects in a constructor
+	if _, err := connection.Exec(`DELETE FROM artworks WHERE deleted = TRUE`); err != nil {
+		panic(err)
+	}
+	return &Store{connection, userStore}
+}
 
 func closeRows(rows *sql.Rows) {
 	_ = rows.Close()

@@ -15,7 +15,8 @@ type Storage struct {
 
 var ErrSchemaMismatch = errors.New("schema mismatch")
 
-// New sets up a SQLite database connection
+// New sets up a SQLite database connection and performs basic maintenance, such as:
+//   - verify the current DB instance schema matches the designed one
 func New(logger *logrus.Logger, path string) (storage Storage, err error) {
 	storage.Logger = logger
 	logger.Println("initialising SQLite DB")
@@ -121,7 +122,7 @@ func sameSchemaMap(first, second map[string]string) bool {
 	return true
 }
 
-// getConnectionString provides a configuration string that enables foreign keys constraints
+// getConnectionString provides a configuration string that enables foreign keys constraints.
 func getConnectionString(path string) string {
 	return path + "?_fk=on"
 }
