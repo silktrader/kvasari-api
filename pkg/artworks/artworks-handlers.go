@@ -164,9 +164,11 @@ func addArtwork(ar Storer) http.HandlerFunc {
 			JSON.Created(writer, struct {
 				Id      string
 				Updated ntime.NTime
+				Format  string
 			}{
 				Id:      checksum,
 				Updated: date,
+				Format:  string(fileFormat),
 			})
 		}
 	}
