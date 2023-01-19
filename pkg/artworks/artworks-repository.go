@@ -3,9 +3,11 @@ package artworks
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"github.com/silktrader/kvasari/pkg/ntime"
 	"github.com/silktrader/kvasari/pkg/rest"
 	"github.com/silktrader/kvasari/pkg/users"
+	"os"
 )
 
 type Storer interface {
@@ -41,13 +43,37 @@ var (
 // and provides relevant interface implementations.
 // Soft-deleted artworks are cleaned up on initialisation.
 func NewStore(connection *sql.DB, userStore users.UserRepository) *Store {
-	// ensure that previously soft-deleted artworks are wiped out, on initialisation, for all users
-	// the event is designed to occur at every, hopefully rare, server restart, as well as through scheduled tasks
-	// errors are safe to be ignored, but it remains debatable to include side effects in a constructor
-	if _, err := connection.Exec(`DELETE FROM artworks WHERE deleted = TRUE`); err != nil {
+	if err := cleanRemovedArtworks(connection); err != nil {
 		panic(err)
 	}
 	return &Store{connection, userStore}
+}
+
+// cleanRemovedArtworks ensures that previously soft-deleted artworks are cleaned, on initialisation, for all users.
+// The event is scheduled to occur at every server restart, and regularly through `cron` jobs or alternatives.
+// Errors are safe to be ignored, but it remains debatable to include side effects in a constructor.
+func cleanRemovedArtworks(connection *sql.DB) error {
+	rows, err := connection.Query(`
+		DELETE FROM artworks WHERE deleted = TRUE
+		RETURNING id, format
+	`)
+	if err != nil {
+		return err
+	}
+
+	defer closeRows(rows)
+
+	// delete files thanks to the returned ids and formats
+	var id, format string
+	for rows.Next() {
+		if err = rows.Scan(&id, &format); err != nil {
+			return err
+		}
+		if err = os.Remove(fmt.Sprintf("%s.%s", id, format)); err != nil {
+			return err
+		}
+	}
+	return rows.Err()
 }
 
 func closeRows(rows *sql.Rows) {

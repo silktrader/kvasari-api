@@ -66,7 +66,6 @@ func getFormat(imageType string) ImageFormat {
 
 func addArtwork(ar Storer) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
-
 		// ensure that the uploader alias matches the authenticated user's one
 		var user = auth.MustGetUser(request)
 		if user.Alias != request.FormValue("alias") {
@@ -74,8 +73,7 @@ func addArtwork(ar Storer) http.HandlerFunc {
 			return
 		}
 
-		// ParseMultipartForm argument refers to a memory limit, additional bytes will be cached on disk
-		// 100 << 20 is a bitwise equivalent of 100 ** 2 ^ 20
+		// ParseMultipartForm's argument refers to a memory limit, additional bytes will be cached on disk
 		if err := request.ParseMultipartForm(maxFileUploadSize); err != nil {
 			JSON.InternalServerError(writer, err)
 			return
@@ -91,7 +89,7 @@ func addArtwork(ar Storer) http.HandlerFunc {
 
 		// ensure files are sized appropriately
 		if header.Size > maxFileUploadSize {
-			JSON.BadRequestWithMessage(writer, fmt.Sprintf("%s is too large; limit file sizes to 15MB", header.Filename))
+			JSON.BadRequestWithMessage(writer, fmt.Sprintf("%s is too large; limit file sizes to 40MiB", header.Filename))
 			return
 		}
 
@@ -130,6 +128,9 @@ func addArtwork(ar Storer) http.HandlerFunc {
 			return
 		}
 		var checksum = hex.EncodeToString(hash.Sum(nil))
+
+		// guard against duplicate uploads, before an existing file is truncated
+		// tk
 
 		// write image file named after its hash and detected file extension
 		var fileFormat = getFormat(filetype)
