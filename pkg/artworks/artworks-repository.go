@@ -414,7 +414,7 @@ func (ar *Store) GetStream(userId string, since string, latest string) (data Str
 	var deleted, recent bool
 	for rows.Next() {
 		var artwork ArtworkStreamPreview
-		if err = rows.Scan(&artwork.Id, &artwork.Title, &artwork.AuthorAlias, &artwork.AuthorName,
+		if err = rows.Scan(&artwork.Id, &artwork.Title, &artwork.Author.Alias, &artwork.Author.Name,
 			&artwork.Format, &artwork.Added, &recent, &deleted, &artwork.Comments, &artwork.Reactions); err != nil {
 			return data, err
 		}

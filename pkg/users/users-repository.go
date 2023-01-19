@@ -244,6 +244,7 @@ func (ur *userRepository) GetUserRelations(userId string) ([]RelationData, []Rel
 
 func (ur *userRepository) GetDetails(alias string, requesterId string) (details UserDetails, err error) {
 	if err = ur.Connection.QueryRow(`
+		WITH author_artworks AS (SELECT id FROM artworks WHERE author_id = users.id AND NOT deleted)
 		SELECT
 			name,
 			email,
@@ -254,9 +255,9 @@ func (ur *userRepository) GetDetails(alias string, requesterId string) (details 
 			(SELECT EXISTS (SELECT TRUE FROM bans WHERE target = users.id AND source = ?)) as blockedByUser,
 			(SELECT count(follower) FROM followers WHERE target = users.id) as followers,
 			(SELECT count(target) FROM followers WHERE follower = users.id) as following,
-			(SELECT count(id) FROM artworks WHERE author_id = users.id) as artworks,
-			(SELECT count(user) FROM artwork_comments WHERE user = users.id) as comments,
-			(SELECT count(user) FROM artwork_feedback WHERE user = users.id) as reactions
+			(SELECT count(id) FROM author_artworks) as artworks,
+			(SELECT count(id) FROM artwork_comments WHERE artwork IN author_artworks) as comments,
+			(SELECT count(user) FROM artwork_feedback WHERE artwork IN author_artworks) as reactions
 		FROM users
 		WHERE alias = ? AND ? NOT IN (SELECT target FROM bans WHERE source = users.id)`,
 		requesterId,

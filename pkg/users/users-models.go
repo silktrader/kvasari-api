@@ -92,7 +92,8 @@ func getValidateAlias(request *http.Request) (alias string, err error) {
 	return alias, ValidateUserAlias(alias)
 }
 
-// UserDetails describes data returned by the getDetails() handler and repository method
+// UserDetails describes data returned by the getDetails() handler and repository method.
+// Note that Comments and Reactions refer to feedback received, rather than emitted.
 type UserDetails struct {
 	Name           string
 	Email          string

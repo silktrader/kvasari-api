@@ -74,4 +74,6 @@ CREATE TABLE
 		CONSTRAINT artwork_fk FOREIGN KEY (artwork) REFERENCES artworks (id) ON DELETE CASCADE,
 		CONSTRAINT user_fk FOREIGN KEY (user) REFERENCES users (id) ON DELETE CASCADE
 	);
+
+CREATE VIEW IF NOT EXISTS deleted_artworks AS SELECT id FROM artworks WHERE deleted;
 `

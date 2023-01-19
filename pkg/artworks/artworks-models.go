@@ -181,21 +181,25 @@ func ValidateDate(date string) error {
 	return validation.Validate(date, datesRules...)
 }
 
-// Stream Responses
+/* Stream related responses */
 
+// ArtworkStreamPreview carries response data from stream requests.
 type ArtworkStreamPreview struct {
-	Id          string
-	Title       *string
-	AuthorAlias string
-	AuthorName  string
-	Format      string
-	Reactions   int
-	Comments    int
-	Added       ntime.NTime
+	Id        string
+	Title     *string
+	Author    ArtworkPreviewAuthor
+	Format    string
+	Reactions int
+	Comments  int
+	Added     ntime.NTime
 }
 
-// Images metadata, to be expanded
+type ArtworkPreviewAuthor struct {
+	Alias string
+	Name  string
+}
 
+// ImageMetadata contains data required to correctly display an artwork; it may be later expanded to include dimensions.
 type ImageMetadata struct {
 	Format string
 }
