@@ -100,6 +100,7 @@ func addArtwork(ar Storer) http.HandlerFunc {
 			return
 		}
 
+		// format detection by reading a file's header avoid extension renaming issues
 		filetype := http.DetectContentType(buffer)
 		var invalidFileType = true
 		for _, acceptableType := range acceptableFileTypes {
@@ -129,50 +130,76 @@ func addArtwork(ar Storer) http.HandlerFunc {
 		}
 		var checksum = hex.EncodeToString(hash.Sum(nil))
 
-		// guard against duplicate uploads, before an existing file is truncated
-		// tk
-
-		// write image file named after its hash and detected file extension
+		// detect file extension or format
 		var fileFormat = getFormat(filetype)
-		storedFile, err := os.Create(fmt.Sprintf("./images/%s.%s", checksum, fileFormat))
+
+		// guard against duplicate uploads, before an existing file is truncated
+		// attempt to clean a previously soft-deleted artwork and related comments, reactions
+		existsImage, err := ar.CleanDeletedArtwork(checksum, user.Id)
 		if err != nil {
 			JSON.InternalServerError(writer, err)
 			return
 		}
 
-		defer closeFile(storedFile)
+		// attempt to update the database
+		date, err := ar.AddArtwork(AddArtworkData{
+			Id:       checksum,
+			AuthorId: user.Id,
+			Format:   fileFormat,
+			Type:     Painting, // default for the moment
+		})
 
-		// seek to start after checksum calculations
-		if _, err = uploadedFile.Seek(0, io.SeekStart); err != nil {
+		if err != nil {
+			if errors.Is(err, ErrDupArtwork) {
+				JSON.BadRequestWithMessage(writer, "The artwork image is already present.")
+				return
+			}
 			JSON.InternalServerError(writer, err)
 			return
 		}
 
-		if written, e := io.Copy(storedFile, uploadedFile); e != nil || written == 0 {
-			JSON.InternalServerError(writer, e)
-			return
+		// write image file named after its hash and detected file extension
+		// there's no need to perform the operation if the file hasn't been deleted yet
+		if !existsImage {
+			if err = writeImage(uploadedFile, checksum, string(fileFormat)); err != nil {
+				JSON.InternalServerError(writer, err)
+				// in the unlikely case an error occurs while writing to disk, attempt to clean the related DB entry
+				_ = ar.CleanArtwork(checksum, user.Id)
+				return
+			}
 		}
 
-		// finally, attempt to update the database
-		if date, e := ar.AddArtwork(AddArtworkData{
-			Id:       checksum,
-			AuthorId: user.Id,
-			Format:   fileFormat,
-			Type:     Painting, // default for the moment tk change to default in DB
-		}); e != nil {
-			JSON.InternalServerError(writer, e)
-		} else {
-			JSON.Created(writer, struct {
-				Id      string
-				Updated ntime.NTime
-				Format  string
-			}{
-				Id:      checksum,
-				Updated: date,
-				Format:  string(fileFormat),
-			})
-		}
+		JSON.Created(writer, struct {
+			Id      string
+			Updated ntime.NTime
+			Format  string
+		}{
+			Id:      checksum,
+			Updated: date,
+			Format:  string(fileFormat),
+		})
 	}
+}
+
+// writeImage creates (or truncates) an image file named after its hash and header-detected file extension.
+func writeImage(file multipart.File, checksum, format string) error {
+	storedFile, err := os.Create(fmt.Sprintf("./images/%s.%s", checksum, format))
+	if err != nil {
+		return err
+	}
+	defer closeFile(storedFile)
+
+	// seek to file start, to offset previous checksum calculations or header reads
+	if _, err = file.Seek(0, io.SeekStart); err != nil {
+		return err
+	}
+
+	if written, e := io.Copy(storedFile, file); e != nil {
+		return e
+	} else if written == 0 {
+		return errors.New("no bytes written")
+	}
+	return nil
 }
 
 // deleteArtwork handles the authenticated DELETE "/artworks/:artworkId" route

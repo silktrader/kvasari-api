@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/mattn/go-sqlite3"
 	"github.com/silktrader/kvasari/pkg/ntime"
 	"github.com/silktrader/kvasari/pkg/rest"
 	"github.com/silktrader/kvasari/pkg/users"
@@ -13,6 +14,8 @@ import (
 type Storer interface {
 	AddArtwork(data AddArtworkData) (ntime.NTime, error)
 	DeleteArtwork(artworkId, userId string) bool
+	CleanArtwork(artworkId, userId string) error
+	CleanDeletedArtwork(artworkId, userId string) (bool, error)
 	GetArtworkData(artworkId, requesterId string) (*Artwork, error)
 	GetImageMetadata(artworkId, requesterId string) (ImageMetadata, error)
 	SetArtworkTitle(artworkId, requesterId, title string) error
@@ -37,6 +40,7 @@ type Store struct {
 var (
 	ErrNotFound    = errors.New("not found")
 	ErrNotModified = errors.New("not modified")
+	ErrDupArtwork  = errors.New("duplicate artwork")
 )
 
 // NewStore returns an artwork repository, or store, which wraps the necessary dependencies
@@ -69,7 +73,7 @@ func cleanRemovedArtworks(connection *sql.DB) error {
 		if err = rows.Scan(&id, &format); err != nil {
 			return err
 		}
-		if err = os.Remove(fmt.Sprintf("%s.%s", id, format)); err != nil {
+		if err = os.Remove(fmt.Sprintf("./images/%s.%s", id, format)); err != nil {
 			return err
 		}
 	}
@@ -80,27 +84,41 @@ func closeRows(rows *sql.Rows) {
 	_ = rows.Close()
 }
 
+// AddArtwork will create a new artwork metadata, provided the given hash is unique in the whole DB.
+// Please, note that a concomitant image upload is expected.
 func (ar *Store) AddArtwork(data AddArtworkData) (ntime.NTime, error) {
-
 	var now = ntime.Now()
-
-	result, err := ar.Connection.Exec(`
+	if _, err := ar.Connection.Exec(`
 		INSERT INTO artworks(id, type, format, author_id, added, updated)
 		VALUES(?, ?, ?, ?, ?, ?)`,
-		data.Id, data.Type, data.Format, data.AuthorId, now, now)
-
-	// don't bother checking for unique constraints with UUID generation
-	if err != nil {
+		data.Id, data.Type, data.Format, data.AuthorId, now, now); err != nil {
+		var sqliteErr sqlite3.Error
+		if errors.As(err, &sqliteErr) && sqliteErr.ExtendedCode == sqlite3.ErrConstraintPrimaryKey {
+			return now, ErrDupArtwork
+		}
 		return now, err
 	}
-
-	// tk check whether needed
-	rows, err := result.RowsAffected()
-	if err != nil || rows < 1 {
-		return now, err
-	}
-
 	return now, nil
+}
+
+func (ar *Store) CleanArtwork(artworkId, userId string) error {
+	_, err := ar.Connection.Exec(`DELETE FROM artworks WHERE id = ? AND author_id = ?`,
+		artworkId, userId,
+	)
+	return err
+}
+
+// CleanDeletedArtwork attempts to clean up a previously soft-deleted artwork,
+// triggering a cascade of comment and reactions deletions.
+func (ar *Store) CleanDeletedArtwork(artworkId, userId string) (bool, error) {
+	result, err := ar.Connection.Exec(`DELETE FROM artworks WHERE id = ? AND author_id = ? AND deleted`,
+		artworkId, userId,
+	)
+	if err != nil {
+		return false, err
+	}
+	deleted, err := result.RowsAffected()
+	return deleted == 1, err
 }
 
 /*
