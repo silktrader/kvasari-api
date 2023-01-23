@@ -170,21 +170,18 @@ func (ar *Store) GetArtworkData(artworkId, requesterId string) (*Artwork, error)
 }
 
 func (ar *Store) GetArtworkComments(artworkId, requesterId string) ([]CommentResponse, error) {
-
-	// now fetch comments; at this point it's known the user isn't banned
 	var comments = make([]CommentResponse, 0)
 	rows, err := ar.Connection.Query(`
 		SELECT artwork_comments.id, alias, name, comment, date FROM artwork_comments
 		JOIN users ON artwork_comments.user = users.id
 		WHERE artwork = ?
-		AND ? NOT IN (SELECT target FROM bans WHERE source IN (SELECT author_id FROM artworks WHERE artworks.id = ?))
+		AND ? NOT IN (SELECT target FROM bans WHERE source IN (SELECT author_id FROM artworks WHERE id = artwork_comments.artwork))
 		ORDER BY date DESC
-		`, artworkId, requesterId, artworkId)
+		`, artworkId, requesterId)
 
 	if err != nil {
 		return nil, err
 	}
-
 	defer closeRows(rows)
 
 	for rows.Next() {
@@ -427,39 +424,50 @@ type StreamData struct {
 
 func (ar *Store) GetStream(userId string, since string, latest string) (data StreamData, err error) {
 	// default artworks capacity set to default paginated size
+	const defaultPage = 12
 	var (
-		artworks    = make([]ArtworkStreamPreview, 0, 12)
+		artworks    = make([]ArtworkStreamPreview, 0, defaultPage)
 		newArtworks = make([]ArtworkStreamPreview, 0)
 		deletedIds  = make([]string, 0)
 	)
 
 	rows, err := ar.Connection.Query(`
 		SELECT arts.id, title, alias, name, format, added, new, deleted,
-		       coalesce(comments_count, 0) as comments_count,
-		       coalesce(feedback_count, 0) as feedback_count
+		       coalesce(comments, 0) as comments_count,
+		       coalesce(feedback, 0) as feedback_count
 		FROM (SELECT *, added > ? as new FROM artworks
 			WHERE author_id IN (SELECT target FROM followers WHERE follower = ?)
-			AND added < ? OR added > ? OR (deleted = TRUE AND added > ? AND added < ?)) as arts
+			AND (added < ? AND NOT deleted)
+			OR (added > ? AND NOT deleted)
+			OR (deleted AND added > ? AND added < ?)) as arts
 		JOIN users ON arts.author_id = users.id
-		LEFT JOIN (SELECT artwork, count(id) as comments_count FROM artwork_comments GROUP BY artwork) as comments
+		LEFT JOIN (SELECT artwork, count(id) as comments FROM artwork_comments GROUP BY artwork) as comments
 		    ON arts.id = comments.artwork
-		LEFT JOIN (SELECT artwork, count(*) as feedback_count FROM artwork_feedback GROUP BY artwork) as feedback
+		LEFT JOIN (SELECT artwork, count(*) as feedback FROM artwork_feedback GROUP BY artwork) as feedback
 		    ON arts.id = feedback.artwork
-		ORDER BY added DESC LIMIT 12;`,
-		latest, userId, since, latest, latest, since,
+		ORDER BY added DESC LIMIT ?;`,
+		since, userId, latest, since, latest, since, defaultPage,
 	)
-
 	if err != nil {
 		return data, err
 	}
-
 	defer closeRows(rows)
 
 	var deleted, recent bool
 	for rows.Next() {
 		var artwork ArtworkStreamPreview
-		if err = rows.Scan(&artwork.Id, &artwork.Title, &artwork.Author.Alias, &artwork.Author.Name,
-			&artwork.Format, &artwork.Added, &recent, &deleted, &artwork.Comments, &artwork.Reactions); err != nil {
+		if err = rows.Scan(
+			&artwork.Id,
+			&artwork.Title,
+			&artwork.Author.Alias,
+			&artwork.Author.Name,
+			&artwork.Format,
+			&artwork.Added,
+			&recent,
+			&deleted,
+			&artwork.Comments,
+			&artwork.Reactions,
+		); err != nil {
 			return data, err
 		}
 
