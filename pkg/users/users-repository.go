@@ -133,30 +133,16 @@ func (ur *userRepository) GetUserById(id string) (user User, err error) {
 }
 
 func (ur *userRepository) Register(data AddUserData) (*User, error) {
-
 	var id = rest.MustGetNewUUID()
 	var now = ntime.Now()
-
-	result, err := ur.Connection.Exec(`
+	if _, err := ur.Connection.Exec(`
 		INSERT INTO users(id, name, alias, email, password, created, updated)
 		VALUES(?, ?, ?, ?, ?, ?, ?)`,
-		id, data.Name, data.Alias, data.Email, data.Password, now, now)
-
-	var sqliteErr sqlite3.Error
-	if errors.As(err, &sqliteErr) {
-		if sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
+		id, data.Name, data.Alias, data.Email, data.Password, now, now); err != nil {
+		var sqliteErr sqlite3.Error
+		if errors.As(err, &sqliteErr) && sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
 			return nil, ErrDupUser
 		}
-	}
-
-	// generic error
-	if err != nil {
-		return nil, fmt.Errorf("couldn't add user %q: %w", data.Alias, err)
-	}
-
-	// tk improve handling by returning appropriate error
-	rows, err := result.RowsAffected()
-	if rows < 1 || err != nil {
 		return nil, err
 	}
 

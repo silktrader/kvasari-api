@@ -112,7 +112,6 @@ func run() error {
 	handler := e.Handler()
 
 	// setup handlers
-	// tk look into passing pointers
 	var authRepository = auth.NewRepository(storage.Connection)
 	var usersRepository = users.NewRepository(storage.Connection)
 	var artworksStore = artworks.NewStore(storage.Connection, usersRepository)

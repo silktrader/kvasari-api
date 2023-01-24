@@ -22,7 +22,7 @@ var (
 	errParsingAuth = errors.New("unable to parse authorisation header")
 )
 
-// Auth performs ridiculously simple checks on routes, ensuring that requests include a valid user ID, as per project's specifications.
+// Auth performs basic checks on routes, ensuring that requests include a valid and assigned user ID.
 func Auth(ar IRepository) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
@@ -32,8 +32,7 @@ func Auth(ar IRepository) func(next http.Handler) http.Handler {
 				return
 			}
 
-			// in the (temporary) absence of actual authorisation, verify the user exists
-			// tk return pointer instead of user?
+			// in the absence of actual authorisation, verify the user exists
 			user, err := ar.GetUserById(id)
 			if err != nil {
 				reportUnauthorised(w)

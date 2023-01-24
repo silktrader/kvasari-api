@@ -206,7 +206,7 @@ func writeImage(file multipart.File, checksum, format string) error {
 func deleteArtwork(ar Storer) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		// issues a bad request regardless of authorisation issues to deny information about existing resources
-		if deleted := ar.DeleteArtwork(GetParam(request, "artworkId"), auth.MustGetUser(request).Id); deleted {
+		if err := ar.DeleteArtwork(GetParam(request, "artworkId"), auth.MustGetUser(request).Id); err == nil {
 			JSON.NoContent(writer)
 		} else {
 			JSON.BadRequest(writer)
@@ -406,7 +406,7 @@ func getStream(ar Storer) http.HandlerFunc {
 
 		stream, err := ar.GetStream(user.Id, since, latest)
 		if err != nil {
-			JSON.InternalServerError(writer, err) // tk handle
+			JSON.InternalServerError(writer, err)
 			return
 		}
 

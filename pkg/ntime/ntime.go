@@ -41,7 +41,7 @@ func (nt *NTime) Scan(value any) error {
 
 // Value implements the driver Valuer interface.
 func (nt NTime) Value() (driver.Value, error) {
-	// arguable choice, would yield poor results with full-fledged DBs tk
+	// arguable choice, would yield poor results with full-fledged DBs
 	if nt.isValid {
 		return driver.Value(nt.time.UTC().Format(time.RFC3339)), nil
 	}

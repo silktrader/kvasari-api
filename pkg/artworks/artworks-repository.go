@@ -13,7 +13,7 @@ import (
 
 type Storer interface {
 	AddArtwork(data AddArtworkData) (ntime.NTime, error)
-	DeleteArtwork(artworkId, userId string) bool
+	DeleteArtwork(artworkId, userId string) error
 	CleanArtwork(artworkId, userId string) error
 	CleanDeletedArtwork(artworkId, userId string) (bool, error)
 	GetArtworkData(artworkId, requesterId string) (*Artwork, error)
@@ -239,26 +239,24 @@ func (ar *Store) OwnsArtwork(artworkId, userId string) bool {
 	return err != nil && exists
 }
 
-// DeleteArtwork will perform a soft delete and return a negative result in case:
-//   - the artwork doesn't exist
-//   - the artwork isn't owned by the specified user
-//   - the artwork was previously deleted
-//
-// tk handle with errors
-func (ar *Store) DeleteArtwork(artworkId, userId string) bool {
+// DeleteArtwork will perform a soft delete and return an ErrNotFound in case the artwork doesn't exist,
+// isn't owned by the requesting user or was previously deleted.
+func (ar *Store) DeleteArtwork(artworkId, userId string) error {
 	result, err := ar.Connection.Exec(`
-		UPDATE artworks SET deleted = TRUE WHERE artworks.id = ? AND author_id = ? AND deleted = FALSE`,
+		UPDATE artworks SET deleted = TRUE WHERE artworks.id = ? AND author_id = ? AND NOT deleted`,
 		artworkId,
 		userId,
 	)
 	if err != nil {
-		return false
+		return err
 	}
-	results, err := result.RowsAffected()
-	if err != nil || results != 1 {
-		return false
+	if results, e := result.RowsAffected(); e != nil {
+		return e
+	} else if results == 0 {
+		return ErrNotFound
+	} else {
+		return nil
 	}
-	return true
 }
 
 func (ar *Store) SetArtworkTitle(artworkId, userId, newTitle string) error {
