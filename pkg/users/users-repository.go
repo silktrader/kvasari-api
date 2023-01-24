@@ -164,19 +164,17 @@ func (ur *userRepository) UpdateName(userId string, newName string) error {
 
 // UpdateAlias will change the specified user's alias, but won't return errors in case of no changes
 func (ur *userRepository) UpdateAlias(userId string, newAlias string) error {
-	// avoid using DB triggers for possible future storage switches
 	// idempotent PUT request doesn't require a change detection
-	_, err := ur.Connection.Exec("UPDATE users SET alias = ?, updated = ? WHERE id = ?", newAlias, time.Now(), userId)
-
-	// detect alias uniqueness violations which signal that the alias is taken
-	var sqliteErr sqlite3.Error
-	if errors.As(err, &sqliteErr) {
-		if sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
-			return ErrAliasTaken
-		}
+	if _, err := ur.Connection.Exec("UPDATE users SET alias = ? WHERE id = ?",
+		newAlias, time.Now(), userId); err != nil {
+		// detect alias uniqueness violations which signal that the alias is taken
+		var sqliteErr sqlite3.Error
+		if errors.As(err, &sqliteErr) && sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
+				return ErrAliasTaken
+			}
+		return err
 	}
-
-	return err
+	return nil
 }
 
 func (ur *userRepository) GetUserRelations(userId string) ([]RelationData, []RelationData, error) {
