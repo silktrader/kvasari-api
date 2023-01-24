@@ -2,7 +2,6 @@ package artworks
 
 import (
 	validation "github.com/go-ozzo/ozzo-validation/v4"
-	"github.com/go-ozzo/ozzo-validation/v4/is"
 	"github.com/silktrader/kvasari/pkg/ntime"
 	"github.com/silktrader/kvasari/pkg/users"
 	"net/url"
@@ -27,11 +26,6 @@ const (
 	JPG  ImageFormat = "jpg"
 	WEBP ImageFormat = "webp"
 )
-
-// tk really odd issue with variadic arguments; can't specify ArtworkType[]
-var artworkTypes = []interface{}{Painting, Drawing, Sculpture, Architecture, Photograph}
-
-// var imageFormats = []interface{}{PNG, JPG, WEBP}
 
 // Artwork describes all the publicly available metadata relevant to an artwork.
 type Artwork struct {
@@ -62,14 +56,6 @@ type AddArtworkData struct {
 	AuthorId string
 	Format   ImageFormat
 	Type     ArtworkType
-}
-
-// tk check whether this is actually needed
-func (data AddArtworkData) Validate() error {
-	return validation.ValidateStruct(&data,
-		validation.Field(&data.Type, validation.Required, validation.In(artworkTypes...)),
-		validation.Field(&data.Format, validation.Required, is.URL),
-	)
 }
 
 // Edit and artwork title

@@ -290,7 +290,6 @@ func setReaction(ar Storer) http.HandlerFunc {
 		var date = ntime.Now()
 
 		// it's debatable whether 201 should be returned on first setting the reaction
-		// tk return 201
 		if err = ar.SetReaction(user.Id, GetParam(request, "artworkId"), date, data); err == nil {
 			JSON.Ok(writer, struct {
 				Status string
