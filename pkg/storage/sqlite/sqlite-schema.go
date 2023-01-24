@@ -76,4 +76,13 @@ CREATE TABLE
 	);
 
 CREATE VIEW IF NOT EXISTS deleted_artworks AS SELECT id FROM artworks WHERE deleted;
+
+-- the BEFORE clause should prevent recursive triggers
+-- there's a possible issue with date time formatting
+CREATE TRIGGER IF NOT EXISTS set_user_timestamp
+BEFORE UPDATE ON users
+FOR EACH ROW
+BEGIN
+  UPDATE users SET updated = datetime('now') WHERE id = OLD.id;
+END;
 `
