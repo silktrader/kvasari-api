@@ -161,7 +161,7 @@ func addArtwork(ar Storer) http.HandlerFunc {
 		// write image file named after its hash and detected file extension
 		// there's no need to perform the operation if the file hasn't been deleted yet
 		if !existsImage {
-			if err = writeImage(uploadedFile, checksum, string(fileFormat)); err != nil {
+			if err = writeImage(uploadedFile, checksum, string(fileFormat), ar.GetImagesPath()); err != nil {
 				JSON.InternalServerError(writer, err)
 				// in the unlikely case an error occurs while writing to disk, attempt to clean the related DB entry
 				_ = ar.CleanArtwork(checksum, user.Id)
@@ -182,8 +182,8 @@ func addArtwork(ar Storer) http.HandlerFunc {
 }
 
 // writeImage creates (or truncates) an image file named after its hash and header-detected file extension.
-func writeImage(file multipart.File, checksum, format string) error {
-	storedFile, err := os.Create(fmt.Sprintf("./images/%s.%s", checksum, format))
+func writeImage(file multipart.File, checksum, format, path string) error {
+	storedFile, err := os.Create(fmt.Sprintf("%s/%s.%s", path, checksum, format))
 	if err != nil {
 		return err
 	}
@@ -232,10 +232,13 @@ func getArtworkData(ar Storer) http.HandlerFunc {
 func getArtworkImage(ar Storer) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		var artworkId = GetParam(request, "artworkId")
-		if metadata, err := ar.GetImageMetadata(artworkId, auth.MustGetUser(request).Id); err == nil {
-			http.ServeFile(writer, request, fmt.Sprintf("images/%s.%s", artworkId, metadata.Format))
-		} else {
+		switch metadata, err := ar.GetImageMetadata(GetParam(request, "artworkId"), auth.MustGetUser(request).Id); {
+		case err == nil:
+			http.ServeFile(writer, request, fmt.Sprintf("%s/%s.%s", ar.GetImagesPath(), artworkId, metadata.Format))
+		case errors.Is(err, ErrNotFound):
 			JSON.NotFound(writer, "Image not found, or forbidden access")
+		default:
+			JSON.InternalServerError(writer, err)
 		}
 	}
 }

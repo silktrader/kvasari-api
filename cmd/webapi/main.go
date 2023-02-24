@@ -32,6 +32,7 @@ import (
 	"github.com/silktrader/kvasari/pkg/artworks"
 	"github.com/silktrader/kvasari/pkg/auth"
 	"github.com/silktrader/kvasari/pkg/rest"
+	"github.com/silktrader/kvasari/pkg/storage/images"
 	"github.com/silktrader/kvasari/pkg/storage/sqlite"
 	"github.com/silktrader/kvasari/pkg/users"
 	"github.com/sirupsen/logrus"
@@ -39,6 +40,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 )
@@ -82,13 +84,23 @@ func run() error {
 
 	logger.Infof("application initializing")
 
+	if err = createDirectories(cfg.Images.Path, cfg.DB.Path); err != nil {
+		return fmt.Errorf("error while creating required directories: %w", err)
+	}
+
 	// initialise database before registering handlers for an immediate exit in case of issues
-	storage, err := sqlite.New(logger, cfg.DB.Filename)
+	storage, err := sqlite.New(logger, filepath.Join(cfg.DB.Path, cfg.DB.Filename))
 	if err != nil {
 		logger.WithError(err).Error("error initialising storage")
 		return fmt.Errorf("error while initialising storage: %w", err)
 	}
 	defer storage.Close()
+
+	// initialise images storage before handlers creation, to verify existence and right permissions
+	imageStorage, err := images.New(logger, cfg.Images.Path)
+	if err != nil {
+		return fmt.Errorf("error initialising images storage")
+	}
 
 	// Start (main) API server
 	logger.Info("initializing API server")
@@ -114,7 +126,7 @@ func run() error {
 	// setup handlers
 	var authRepository = auth.NewRepository(storage.Connection)
 	var usersRepository = users.NewRepository(storage.Connection)
-	var artworksStore = artworks.NewStore(storage.Connection, usersRepository)
+	var artworksStore = artworks.NewStore(storage.Connection, usersRepository, imageStorage)
 
 	users.RegisterHandlers(e, usersRepository, authRepository)
 	artworks.RegisterHandlers(e, artworksStore, authRepository)
@@ -156,10 +168,10 @@ func run() error {
 		logger.Infof("signal %v received, start shutdown", sig)
 
 		// Asking API server to shut down and load shed.
-		//err := routerHandler.Close()
-		//if err != nil {
+		// err := routerHandler.Close()
+		// if err != nil {
 		//	logger.WithError(err).Warning("graceful shutdown of routerHandler error")
-		//}
+		// }
 
 		// Give outstanding requests a deadline for completion.
 		ctx, cancel := context.WithTimeout(context.Background(), cfg.Web.ShutdownTimeout)
@@ -183,4 +195,15 @@ func run() error {
 	}
 
 	return nil
+}
+
+// createDirectories creates required directories when missing and checks for the right permissions.
+func createDirectories(imagesPath string, dbPath string) error {
+	// won't return anything, won't have side effects when directories exist
+	if err := os.MkdirAll(imagesPath, 0750); err != nil {
+		return err
+	}
+	return os.MkdirAll(dbPath, 0750)
+	// may want to check for the right permissions at a later stage, Windows handles them differently tk
+	// discriminate between errors tk
 }

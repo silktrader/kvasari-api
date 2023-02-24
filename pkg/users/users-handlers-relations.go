@@ -99,7 +99,7 @@ func unfollowUser(ur UserRepository) http.HandlerFunc {
 		if err := ur.Unfollow(follower.Id, targetAlias); err == nil {
 			JSON.NoContent(writer)
 		} else if errors.Is(err, ErrNotFound) {
-			JSON.BadRequestWithMessage(writer, fmt.Sprintf("User %s isn't followed", targetAlias))
+			JSON.NotFound(writer, fmt.Sprintf("User %s isn't followed", targetAlias))
 		} else {
 			JSON.InternalServerError(writer, err)
 		}

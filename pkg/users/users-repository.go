@@ -170,8 +170,8 @@ func (ur *userRepository) UpdateAlias(userId string, newAlias string) error {
 		// detect alias uniqueness violations which signal that the alias is taken
 		var sqliteErr sqlite3.Error
 		if errors.As(err, &sqliteErr) && sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
-				return ErrAliasTaken
-			}
+			return ErrAliasTaken
+		}
 		return err
 	}
 	return nil
@@ -259,7 +259,7 @@ func (ur *userRepository) GetDetails(alias string, requesterId string) (details 
 		&details.BlockedByUser,
 		&details.Followers,
 		&details.Following,
-		&details.Artworks,
+		&details.ArtworksAdded,
 		&details.Comments,
 		&details.Reactions,
 	); errors.Is(err, sql.ErrNoRows) {

@@ -85,9 +85,8 @@ func encodeJSON(writer http.ResponseWriter, status int, payload interface{}) {
 }
 
 // DecodeValidate performs validation checks on any data argument that implements `Validate()`.
-func DecodeValidate[T Validator](request *http.Request) (T, error) {
-	var data T
-	if err := json.NewDecoder(request.Body).Decode(&data); err != nil {
+func DecodeValidate[T Validator](request *http.Request) (data T, err error) {
+	if err = json.NewDecoder(request.Body).Decode(&data); err != nil {
 		return data, err
 	}
 	return data, data.Validate()

@@ -62,7 +62,6 @@ func getUsers(ur UserRepository) http.HandlerFunc {
 // registerUser handles the POST "/users" route
 func registerUser(ur UserRepository) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
-
 		// parse and validate the user data
 		data, err := JSON.DecodeValidate[AddUserData](request)
 		if err != nil {

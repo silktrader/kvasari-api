@@ -99,7 +99,7 @@ type UserDetails struct {
 	Email          string
 	Followers      int
 	Following      int
-	Artworks       int
+	ArtworksAdded  int
 	Comments       int
 	Reactions      int
 	FollowedByUser bool

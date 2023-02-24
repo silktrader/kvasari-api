@@ -25,7 +25,11 @@ type WebAPIConfiguration struct {
 	}
 	Debug bool
 	DB    struct {
+		Path     string `conf:"default:/tmp/kvasari"`
 		Filename string `conf:"default:data.db"`
+	}
+	Images struct {
+		Path string `conf:"default:/tmp/kvasari/images"`
 	}
 }
 

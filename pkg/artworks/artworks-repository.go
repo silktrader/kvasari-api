@@ -7,6 +7,7 @@ import (
 	"github.com/mattn/go-sqlite3"
 	"github.com/silktrader/kvasari/pkg/ntime"
 	"github.com/silktrader/kvasari/pkg/rest"
+	"github.com/silktrader/kvasari/pkg/storage/images"
 	"github.com/silktrader/kvasari/pkg/users"
 	"os"
 )
@@ -30,11 +31,14 @@ type Storer interface {
 
 	GetUserArtworks(userAlias, requesterId string, pageData PageData) (UserArtworks, error)
 	GetStream(userId, since, latest string) (data StreamData, err error)
+
+	GetImagesPath() string
 }
 
 type Store struct {
 	Connection *sql.DB
 	UserStore  users.UserRepository
+	ImageStore images.Storage
 }
 
 var (
@@ -46,17 +50,17 @@ var (
 // NewStore returns an artwork repository, or store, which wraps the necessary dependencies
 // and provides relevant interface implementations.
 // Soft-deleted artworks are cleaned up on initialisation.
-func NewStore(connection *sql.DB, userStore users.UserRepository) *Store {
-	if err := cleanRemovedArtworks(connection); err != nil {
+func NewStore(connection *sql.DB, userStore users.UserRepository, imageStore images.Storage) *Store {
+	if err := cleanRemovedArtworks(connection, imageStore.Path); err != nil {
 		panic(err)
 	}
-	return &Store{connection, userStore}
+	return &Store{connection, userStore, imageStore}
 }
 
 // cleanRemovedArtworks ensures that previously soft-deleted artworks are cleaned, on initialisation, for all users.
 // The event is scheduled to occur at every server restart, and regularly through `cron` jobs or alternatives.
 // Errors are safe to be ignored, but it remains debatable to include side effects in a constructor.
-func cleanRemovedArtworks(connection *sql.DB) error {
+func cleanRemovedArtworks(connection *sql.DB, imagesPath string) error {
 	rows, err := connection.Query(`
 		DELETE FROM artworks WHERE deleted = TRUE
 		RETURNING id, format
@@ -73,7 +77,7 @@ func cleanRemovedArtworks(connection *sql.DB) error {
 		if err = rows.Scan(&id, &format); err != nil {
 			return err
 		}
-		if err = os.Remove(fmt.Sprintf("./images/%s.%s", id, format)); err != nil {
+		if err = os.Remove(fmt.Sprintf("%s/%s.%s", imagesPath, id, format)); err != nil {
 			return err
 		}
 	}
@@ -82,6 +86,11 @@ func cleanRemovedArtworks(connection *sql.DB) error {
 
 func closeRows(rows *sql.Rows) {
 	_ = rows.Close()
+}
+
+// GetImagesPath provides the base URI whence images are fetched from.
+func (ar *Store) GetImagesPath() string {
+	return ar.ImageStore.Path
 }
 
 // AddArtwork will create a new artwork metadata, provided the given hash is unique in the whole DB.
@@ -281,7 +290,7 @@ func (ar *Store) GetImageMetadata(artworkId, requesterId string) (metadata Image
 		SELECT format
 		FROM   artworks
 		WHERE  id = ?
-		       AND deleted = false
+		       AND NOT deleted
 		       AND ? NOT IN (SELECT target FROM bans WHERE source = artworks.author_id)`,
 		artworkId, requesterId,
 	).Scan(&metadata.Format)
