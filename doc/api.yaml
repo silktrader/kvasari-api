@@ -2,16 +2,18 @@ openapi: 3.0.0
 info:
   title: Kvasari
   version: 1.0.0
-  description: "Kvasari meets the needs of narcissistic users, craving to showcase their visual artworks, while receiving feedback in the form of immediate reactions or more articulate textual comments."
+  description: |
+    Kvasari meets the needs of narcissistic users, craving to showcase their visual artworks,
+    while receiving feedback in the form of immediate reactions or more articulate textual comments.
   contact:
     name: Carlo Giuseppe Tomazzoli
     email: tomazzoli.1951193@studenti.uniroma1.it
-    url: "https://github.com/silktrader"
+    url: https://github.com/silktrader
   license:
     name: GPLv3
-    url: "https://spdx.org/licenses/GPL-3.0-or-later.html"
+    url: https://spdx.org/licenses/GPL-3.0-or-later.html
 servers:
-  - url: "http://localhost:3000"
+  - url: http://localhost:3000
     description: Development
 components:
   securitySchemes:
@@ -21,7 +23,7 @@ components:
 
   responses:
     TimestampedMessage:
-      description: "Successful or unsuccessful request, with description message and timestamp."
+      description: Successful or unsuccessful request, with description message and timestamp.
       content:
         application/json:
           schema:
@@ -276,16 +278,14 @@ components:
         - Like
         - Perplexed
 
-    ArtworkType:
-      title: Artwork's Type
-      description: The artwork's visual medium.
+    ImageFormat:
+      title: Image Format
+      description: The file format and extension of an image, required to located it on a file system.
       type: string
       enum:
-        - Painting
-        - Drawing
-        - Sculpture
-        - Photograph
-        - Architecture
+        - jpg
+        - png
+        - webp
 
     ArtworkTitle:
       title: Artwork's Title
@@ -295,17 +295,34 @@ components:
       maxLength: 250
       pattern: '[\s\S]*'
 
-    PictureURL:
-      title: PictureURL
-      description: The HTTP URL of a picture, terminating with a valid format extension.
-      type: string
-      pattern: '^https?://(?:[a-z0-9\-]+\.)+[a-z]{2,6}(?:/[^/#?]+)+\.(?:jpg|gif|png)$'
-      minLength: 0
-      maxLength: 160
-      format: url
-      example: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Gustav_Klimt_010.jpg/1024px-Gustav_Klimt_010.jpg"
+    ArtworkAuthor:
+      title: Artwork's Author
+      description: Basic details about an artist.
+      type: object
+      additionalProperties: false
+      properties:
+        Alias:
+          $ref: "#/components/schemas/UserAlias"
+        Name:
+          $ref: "#/components/schemas/UserName"
+      required:
+        - Alias
+        - Name
+
+    ReactionsCount:
+      title: Reactions Count
+      description: The number of reactions elicited by an artwork.
+      type: integer
+      minimum: 0
+
+    CommentsCount:
+      title: Comments Count
+      description: The number of comments elicited by an artwork.
+      type: integer
+      minimum: 0
 
     AuthenticationResponse:
+      title: Authentication Response
       type: object
       description: The authentication attempt's result, including the requesting user ID and a status message.
       properties:
@@ -320,10 +337,12 @@ components:
           type: string
       example:
         Id: c09cb1fd-495f-4f63-84dc-87c15a2f7740
+        Name: Egon Schiele
+        Alias: eschiele
         Status: authenticated
 
 security:
-  - bearerAuth: []
+  - bearerAuth: [ ]
 
 tags:
   - name: Artworks
@@ -339,12 +358,11 @@ paths:
   /sessions:
     post:
       summary: Login
-      description: |-
-        Performs a simplistic authentication attempt, returning the user ID and status on success. Passwords aren't checked; only mere user existence is verified.
-
-        Ideally the response would contain access and refresh JWT tokens, with adequate claims.
-
-        The endpoint doesn't create new users, but mandates that action to another route.
+      description: >
+        Performs a simplistic authentication attempt, returning basic user data and their status on success.
+        Passwords aren't checked; only mere user existence is verified.
+      tags:
+        - User Management
       requestBody:
         content:
           application/json:
@@ -372,14 +390,14 @@ paths:
         "400":
           $ref: "#/components/responses/TimestampedMessage"
       operationId: doLogin
-      tags:
-        - User Management
+
   /users:
     post:
+      summary: Register User
+      description: >
+        Register a new user given their unique alias and email. Set the initial full name and a token, unused, password.
       tags:
         - User Management
-      summary: Register User
-      description: "Register a new user given their unique alias and email. Set the initial full name and a token, unused, password."
       requestBody:
         content:
           application/json:
@@ -412,7 +430,8 @@ paths:
         "500":
           $ref: "#/components/responses/TimestampedError"
       operationId: registerUser
-  "/users/{alias}/name":
+
+  /users/{alias}/name:
     put:
       tags:
         - User Management
@@ -443,7 +462,8 @@ paths:
       operationId: setMyUserName
     parameters:
       - $ref: "#/components/parameters/UserAlias"
-  "/users/{alias}/alias":
+
+  /users/{alias}/alias:
     put:
       summary: Edit User Alias
       description: Change the specified user's alias to a new unique value.
@@ -476,7 +496,7 @@ paths:
     parameters:
       - $ref: "#/components/parameters/UserAlias"
 
-  "/users/{alias}/bans":
+  /users/{alias}/bans:
     get:
       summary: Get Bans
       description: "Fetch the users banned by the selected alias, provided authorised credentials."
@@ -541,10 +561,10 @@ paths:
     parameters:
       - $ref: "#/components/parameters/UserAlias"
 
-  "/users/{alias}/bans/{target}":
+  /users/{alias}/bans/{target}:
     delete:
       summary: Unban User
-      description: "Removes the authorised user's ban on the target, restoring the latter's ability to view artworks and follow the source."
+      description: Removes the user's ban on the target, restoring their ability to view artworks and follow the source.
       responses:
         "204":
           description: No Content
@@ -563,7 +583,7 @@ paths:
       - $ref: "#/components/parameters/UserAlias"
       - $ref: "#/components/parameters/Target"
 
-  "/users/{alias}/followers":
+  /users/{alias}/followers:
     get:
       summary: Get Followers
       responses:
@@ -597,7 +617,7 @@ paths:
     parameters:
       - $ref: "#/components/parameters/UserAlias"
 
-  "/users/{alias}/followed":
+  /users/{alias}/followed:
     post:
       summary: Follow User
       requestBody:
@@ -628,6 +648,8 @@ paths:
           description: Unauthorized
         "403":
           description: Forbidden
+        "404":
+          description: Not Found
         "500":
           $ref: "#/components/responses/TimestampedError"
       operationId: followUser
@@ -637,7 +659,7 @@ paths:
     parameters:
       - $ref: "#/components/parameters/UserAlias"
 
-  "/users/{alias}/followed/{target}":
+  /users/{alias}/followed/{target}:
     delete:
       summary: Unfollow User
       responses:
@@ -649,6 +671,8 @@ paths:
           description: Unauthorized
         "403":
           description: Forbidden
+        "404":
+          description: Not Found
         "500":
           $ref: "#/components/responses/TimestampedError"
       operationId: unfollowUser
@@ -659,7 +683,7 @@ paths:
       - $ref: "#/components/parameters/UserAlias"
       - $ref: "#/components/parameters/Target"
 
-  "/artworks/{artworkId}/comments":
+  /artworks/{artworkId}/comments:
     post:
       summary: Add Artwork Comment
       requestBody:
@@ -703,7 +727,7 @@ paths:
     parameters:
       - $ref: "#/components/parameters/ArtworkID"
 
-  "/artworks/{artworkId}/comments/{commentId}":
+  /artworks/{artworkId}/comments/{commentId}:
     delete:
       summary: Delete Artwork Comment
       responses:
@@ -729,14 +753,14 @@ paths:
         description: The randomly generated unique identifier of a user comment
         example: "0e0dcd46-ef66-4b88-8b53-969385df4bce"
 
-  "/artworks/{artworkId}/reactions/{alias}":
+  /artworks/{artworkId}/reactions/{alias}:
     put:
       summary: Set Artwork Reaction
       requestBody:
         content:
           application/json:
             schema:
-              description: "A reaction, to be chosen among available adjectives and nouns, such as: Like, Perplexed, Admirative, etc."
+              description: A reaction, chosen among available adjectives and nouns.
               type: object
               example:
                 Reaction: Like
@@ -744,7 +768,7 @@ paths:
               properties:
                 Reaction:
                   $ref: "#/components/schemas/Reaction"
-        description: "The user's reaction elicited by the artwork"
+        description: The user's reaction elicited by the artwork.
       responses:
         "200":
           description: OK
@@ -767,8 +791,9 @@ paths:
         - Artworks
         - Feedback
       operationId: likePhoto
-      description: |
-        Allows users to react to another user's artwork, by selecting from a limited range of mutually exclusive options, such as "like", or "perplexed".
+      description: >
+        Allows users to react to another user's artwork, by selecting a reaction
+        from a limited range of mutually exclusive options, such as "like", or "perplexed".
     parameters:
       - $ref: "#/components/parameters/ArtworkID"
       - $ref: "#/components/parameters/UserAlias"
@@ -788,74 +813,56 @@ paths:
       tags:
         - Artworks
         - Feedback
+
   /artworks:
     post:
       summary: Add Artwork
+      tags:
+        - Artworks
+      operationId: uploadPhoto
+      description: >
+        Allows authenticated users to post images of their artworks.
+        They are expected to edit accessory metadata at a second stage, possibly in bulk.
+      parameters: [ ]
       requestBody:
+        description: >
+          An artwork image, in the JPG, PNG or WebP file format, deprived of metadata.
         content:
-          application/json:
+          multipart/form-data:
             schema:
-              description: Artwork's picture, along with its required and optional metadata.
+              description: An object containing an image as a binary string.
               type: object
               properties:
-                AuthorId:
-                  $ref: "#/components/schemas/UUID"
-                Title:
-                  $ref: "#/components/schemas/ArtworkTitle"
-                Description:
+                image:
+                  description: A binary string representing an image in either JPG, PNG, or WebP format.
                   type: string
-                  description: An optional concise description of the artwork.
-                  minLength: 3
-                  maxLength: 1000
-                  pattern: '[\s\S]*'
-                PictureUrl:
-                  $ref: "#/components/schemas/PictureURL"
-                Location:
-                  type: string
-                  description: An optional mention of the artwork's current location.
-                  pattern: '[\s\S]*'
-                  minLength: 3
-                  maxLength: 120
-                Year:
-                  type: integer
-                  description: "An approximate estimate of the year when the artwork was created, often used when precise creation dates can't be ascertained."
-                  minimum: -10000
-                  maximum: 10000
-                Type:
-                  $ref: "#/components/schemas/ArtworkType"
-                Created:
-                  $ref: "#/components/schemas/Timestamp"
-              required:
-                - AuthorId
-                - PictureUrl
-                - Type
-            examples:
-              common:
-                value:
-                  Title: Danaë
-                  Description: "Danaë was a popular subject in the early 1900s for many artists; she was used as the quintessential symbol of divine love, and transcendence."
-                  PictureUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Gustav_Klimt_010.jpg/1024px-Gustav_Klimt_010.jpg"
-                  Location: "Galerie Würthle, Vienna"
-                  Year: 1907
-                  Type: Painting
-                  AuthorId: f295c60a-60bf-495e-be9f-32882dac63ca
-        description: Artwork's picture and metadata.
+                  minLength: 0
+                  maxLength: 9000000
+                  format: binary
+            encoding:
+              image:
+                contentType: image/png, image/jpeg, image/webp
       responses:
         "201":
           description: Created
           content:
             application/json:
               schema:
-                description: The server generated artwork ID, along with its date of insertion, which matches its last update.
+                description: >
+                  The server generated artwork ID, along with its date of insertion,
+                  and the detected image format, which may deviate from the extension.
                 type: object
                 properties:
                   Id:
                     $ref: "#/components/schemas/UUID"
                   Updated:
                     $ref: "#/components/schemas/Timestamp"
+                  Format:
+                    $ref: "#/components/schemas/ImageFormat"
               example:
                 Id: f295c60a-60bf-495e-be9f-32882dac63ca
                 Updated: "2022-12-02T22:49:54Z"
+                Format: jpg
         "400":
           $ref: "#/components/responses/TimestampedMessage"
         "401":
@@ -864,147 +871,109 @@ paths:
           description: Forbidden
         "500":
           $ref: "#/components/responses/TimestampedError"
-      tags:
-        - Artworks
-      operationId: uploadPhoto
-      description: "Allows authenticated users to post their artwork and related metadata, such as titles, descriptions, location tags, etc."
-    parameters: []
-  "/artworks/{artworkId}":
+
+  /artworks/{artworkId}:
     delete:
       tags:
         - Artworks
       summary: Delete Artwork
       responses:
         "204":
-          description: Deleted
+          description: Resource Deleted
         "400":
           $ref: "#/components/responses/TimestampedMessage"
         "401":
           description: Unauthorized
       operationId: deletePhoto
-      description: "Removes a previously posted artwork, ensuring the acting user has appropriate rights."
+      description: >
+        Removes a previously posted artwork, ensuring the acting user has appropriate rights.
     parameters:
       - $ref: "#/components/parameters/ArtworkID"
-  "/users/{alias}/profile":
+
+  /users/{alias}:
     get:
       tags:
-        - Artworks
-        - User Relationships
+        - User Management
       summary: Get User Profile
       responses:
         "200":
-          description: Successful response
+          description: Fetch User Data
           content:
             application/json:
               schema:
                 type: object
-                description: Data pertaining to the user's profile page, including previews of user's artworks, as well as their followers and followed peers.
+                description: >
+                  Data pertaining to the user's profile page, including previews of user's artworks,
+                  as well as their followers and followed peers.
                 properties:
-                  TotalArtworks:
+                  Name:
+                    $ref: "#/components/schemas/UserName"
+                  Email:
+                    $ref: "#/components/schemas/Email"
+                  Followers:
                     type: integer
                     minimum: 0
-                    description: The total number of artworks uploaded by the user
-                  Artworks:
-                    type: array
-                    minItems: 0
-                    maxItems: 12
-                    description: The latest uploaded artworks
-                    items:
-                      type: object
-                      additionalProperties: false
-                      properties:
-                        Id:
-                          $ref: "#/components/schemas/UUID"
-                        Title:
-                          $ref: "#/components/schemas/ArtworkTitle"
-                        PictureURL:
-                          $ref: "#/components/schemas/PictureURL"
-                        Added:
-                          $ref: "#/components/schemas/Timestamp"
-                  Followers:
-                    type: array
-                    minItems: 0
-                    maxItems: 1000
-                    description: The users following the profile's owner.
-                    items:
-                      type: object
-                      additionalProperties: false
-                      properties:
-                        Id:
-                          $ref: "#/components/schemas/UUID"
-                        Alias:
-                          $ref: "#/components/schemas/UserAlias"
-                        Name:
-                          $ref: "#/components/schemas/UserName"
-                        Date:
-                          $ref: "#/components/schemas/Timestamp"
-                  FollowedUsers:
-                    type: array
-                    minItems: 0
-                    maxItems: 1000
-                    description: The users followed by the profile's owner.
-                    items:
-                      type: object
-                      additionalProperties: false
-                      properties:
-                        Id:
-                          $ref: "#/components/schemas/UUID"
-                        Alias:
-                          $ref: "#/components/schemas/UserAlias"
-                        Name:
-                          $ref: "#/components/schemas/UserName"
-                        Date:
-                          $ref: "#/components/schemas/Timestamp"
+                    description: The number of people who follow the artist.
+                  Following:
+                    type: integer
+                    minimum: 0
+                    description: The number of people the artist follows.
+                  ArtworksAdded:
+                    type: integer
+                    minimum: 0
+                    description: The number of artworks added by the artist.
+                  Comments:
+                    $ref: "#/components/schemas/CommentsCount"
+                  Reactions:
+                    $ref: "#/components/schemas/ReactionsCount"
+                  FollowedByUser:
+                    type: boolean
+                    description: Reports whether the requesting user follows the artist.
+                  FollowsUser:
+                    type: boolean
+                    description: Reports whether the artist follows the requesting user.
+                  BlockedByUser:
+                    type: boolean
+                    description: Reports whether the artist is blocked by the requesting user.
+                  Created:
+                    $ref: "#/components/schemas/Timestamp"
+                  Updated:
+                    $ref: "#/components/schemas/Timestamp"
                 required:
-                  - TotalArtworks
-                  - Artworks
+                  - Name
+                  - Email
                   - Followers
-                  - FollowedUsers
-              examples:
-                common:
-                  value:
-                    TotalArtworks: 3
-                    Artworks:
-                      - Id: 6fb46dc0-9f6e-4f21-8b82-513bc746e15e
-                        Title: Danaë 2
-                        PictureURL: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Gustav_Klimt_010.jpg/1024px-Gustav_Klimt_010.jpg"
-                        Added: "2022-12-04T12:08:31Z"
-                      - Id: 0e0dcd46-ef66-4b88-8b53-969385df4bce
-                        Title: Danaë 2
-                        PictureURL: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Gustav_Klimt_010.jpg/1024px-Gustav_Klimt_010.jpg"
-                        Added: "2022-12-04T11:03:37Z"
-                      - Id: 6c145ddb-3152-488e-9724-5aeefd9d8862
-                        Title: Death and the Maiden
-                        PictureURL: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/27/Egon_Schiele_012.jpg/1280px-Egon_Schiele_012.jpg"
-                        Added: "2022-12-01T22:54:12Z"
-                    Followers:
-                      - Id: 637c8e48-6e0b-4b6c-acc4-a0ff293dcac2
-                        Alias: gklimt
-                        Name: Gustav Klimt
-                        Date: "2022-11-27T19:55:34Z"
-                    FollowedUsers:
-                      - Id: 637c8e48-6e0b-4b6c-acc4-a0ff293dcac2
-                        Alias: gklimt
-                        Name: Gustav Klimt
-                        Date: "2022-11-27T19:39:51Z"
+                  - Following
+                  - ArtworksAdded
+                  - Comments
+                  - Reactions
+                  - FollowedByUser
+                  - FollowsUser
+                  - BlockedByUser
+                  - Created
+                  - Updated
         "401":
           description: Unauthorized
-        "403":
-          description: Forbidden
+        "404":
+          description: Not Found
         "500":
           $ref: "#/components/responses/TimestampedError"
       operationId: getUserProfile
-      description: |-
-        Provides authenticated users with a snapshot of their own activities; including their latest artworks, as well as the total number of uploads.
-        Details about followed users and followers are also included.
+      description: >
+        Provides a snapshot of an artist's activities, including:
+          * their publicly available biographic data
+          * a count of followers and followed artists
+          * a count of received comments and reactions
     parameters:
       - $ref: "#/components/parameters/UserAlias"
-  "/users/{alias}/stream":
+
+  /users/{alias}/stream:
     get:
       tags:
         - Artworks
-      summary: Get User Stream
+      summary: Get a user's stream
       parameters:
+        - $ref: "#/components/parameters/UserAlias"
         - name: since
           in: query
           schema:
@@ -1016,7 +985,7 @@ paths:
             pattern: '^[1-9]\d{3}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$'
           example: "2022-12-02T02:46:05Z"
           required: true
-          description: The date and time of the earliest update fetched
+          description: The date and time of the last successful stream request.
         - name: latest
           in: query
           schema:
@@ -1028,19 +997,34 @@ paths:
             pattern: '^[1-9]\d{3}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$'
           example: "2022-12-02T15:04:05Z"
           required: true
-          description: The date and time of the latest update received
+          description: The date and time of the latest update received.
+      operationId: getMyStream
+      description: >
+        Returns the artworks uploaded by followed artists, in reverse chronological order, by the dozen,
+        starting from the first artwork added after the "latest" timestamp.
+
+        The "since" timestamp signals the point in time whence all data is assumed to be up to date.
+
+        The purpose is to build a paginated, but continuous stream of artworks, through multiple requests,
+        fetching added artworks, as well as gathering the IDs of removed ones and the latest additions
+        since the last request.
       responses:
         "200":
-          description: Successful response
+          description: Collections of artworks and deleted artworks' IDs.
           content:
             application/json:
               schema:
                 type: object
-                description: |-
-                  Artworks pictures and metadata used to populate a user's personal stream.
-                  The `Artworks` collection comprises the latest twelve items, in reverse chronological order, added by followed peers, starting from the date specified in the `since` query parameter.
+                description: >
+                  Artworks metadata used to populate a user's personal stream.
+
+                  The `Artworks` collection comprises the latest twelve items, in reverse chronological order,
+                  added by followed peers, starting from the date specified in the `since` query parameter.
+
                   `NewArtworks` contains those items that were added since the `latest` query parameter.
-                  `RemovedIds` marks artworks that were since deleted, and that may need to be scrapped from a collection built on previous responses.
+
+                  `RemovedIds` marks artworks that have been deleted by users, during the requests,
+                  and that may need to be scrapped from the stream.
                 properties:
                   Artworks:
                     description: Twelve artworks or fewer, sorted by their date of upload, in descending order.
@@ -1055,29 +1039,19 @@ paths:
                           $ref: "#/components/schemas/UUID"
                         Title:
                           $ref: "#/components/schemas/ArtworkTitle"
-                        AuthorAlias:
-                          $ref: "#/components/schemas/UserAlias"
-                        AuthorName:
-                          $ref: "#/components/schemas/UserName"
-                        PictureURL:
-                          $ref: "#/components/schemas/PictureURL"
+                        Author:
+                          $ref: "#/components/schemas/ArtworkAuthor"
                         Reactions:
-                          type: integer
-                          description: "The number of reactions elicited by the artwork."
-                          minimum: 0
-                          maximum: 100000
+                          $ref: "#/components/schemas/ReactionsCount"
                         Comments:
-                          type: integer
-                          description: "The number of comments elicited by the artwork."
-                          minimum: 0
-                          maximum: 100000
+                          $ref: "#/components/schemas/CommentsCount"
                         Added:
                           $ref: "#/components/schemas/Timestamp"
                   NewArtworks:
-                    description: Artworks added after the `latest` timestamp provided in the request query.
+                    description: Artworks added after the `since` timestamp provided in the request query.
                     type: array
                     minItems: 0
-                    maxItems: 100
+                    maxItems: 12
                     items:
                       type: object
                       additionalProperties: false
@@ -1086,22 +1060,22 @@ paths:
                           $ref: "#/components/schemas/UUID"
                         Title:
                           $ref: "#/components/schemas/ArtworkTitle"
-                        PictureURL:
-                          $ref: "#/components/schemas/PictureURL"
+                        Author:
+                          $ref: "#/components/schemas/ArtworkAuthor"
                         Reactions:
                           type: integer
-                          description: "The number of reactions elicited by the artwork."
+                          description: The number of reactions elicited by the artwork.
                           minimum: 0
                           maximum: 100000
                         Comments:
                           type: integer
-                          description: "The number of comments elicited by the artwork."
+                          description: The number of comments elicited by the artwork.
                           minimum: 0
                           maximum: 100000
                         Added:
                           $ref: "#/components/schemas/Timestamp"
                   DeletedIds:
-                    description: Artworks removed after the `latest` timestamp, in the request query, and before the `since` one.
+                    description: Artworks removed during the time between the "since" and "latest" timestamps.
                     type: array
                     minItems: 0
                     maxItems: 100
@@ -1111,20 +1085,6 @@ paths:
                   - Artworks
                   - NewArtworks
                   - DeletedIds
-              examples:
-                common:
-                  value:
-                    Artworks:
-                      - Id: 44de4ffa-ccdd-478f-94c2-8faad6e46aaf
-                        Title: Danaë
-                        PictureURL: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Gustav_Klimt_010.jpg/1024px-Gustav_Klimt_010.jpg"
-                        Added: "2022-12-01T23:22:04Z"
-                      - Id: ab84e3a6-3a60-40d3-a039-20ecf06cc936
-                        Title: The Kiss
-                        PictureURL: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Klimt_-_Der_Kuss.jpeg/607px-Klimt_-_Der_Kuss.jpg"
-                        Added: "2022-11-28T11:43:18Z"
-                    NewArtworks: []
-                    DeletedIds: []
         "400":
           $ref: "#/components/responses/TimestampedMessage"
         "401":
@@ -1133,11 +1093,3 @@ paths:
           description: Forbidden
         "500":
           $ref: "#/components/responses/TimestampedError"
-      operationId: getMyStream
-      description: |-
-        Summarises all the user's recent activity: artworks are fetched, in reverse chronological order, by the dozen.
-        With the purpose of building a continuous stream, users are expected to make multiple requests to this endpoint, with changing timestamps, to obtain an ever expanding view of previously uploaded artworks.
-        The "since" timestamp signals the earliest time point reached, whence the next dozen artworks, in reverse chronological order, will be provided.
-        The "latest" timestamp indicates the current user time, which allows the server to communicate artworks uploaded after that moment, as well as deleted artworks' IDs, which may have been included in previous responses.
-    parameters:
-      - $ref: "#/components/parameters/UserAlias"
