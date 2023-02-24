@@ -1,5 +1,5 @@
 = KVasari
-Carlo Giuseppe Tomazzoli <https://github.com/silktrader[@silktrader]>
+Silktrader <https://github.com/silktrader[@silktrader]>
 ifndef::env-github[:icons: font]
 ifdef::env-github[]
 :status:
@@ -14,11 +14,13 @@ KVasari's API serves the narcissistic needs of visual artists, allowing them to 
 
 == Features
 
-Endpoints for *adding, removing and editing artworks*, along with their metadata are available.
+Users can *add, remove and edit their artworks*, along with their metadata.
 
-Users can edit basic details about their artistic selves, *comment* in textual form, or leave *graphical reactions* to others`' artworks.
+Artists can edit basic details about their creative selves, *comment* others` artworks in textual form, or leave *graphical reactions*.
 
-Additionally, the API's participants can *follow* their peers, or possibly *ban* them from interactions.
+Additionally, the application's participants can *follow* their peers, or possibly *ban* them from interactions.
+
+A convenient *stream of paginated artworks* conceived by followed peers is equally available.
 
 == Requirements
 
@@ -39,16 +41,24 @@ I developed the project on a _Windows_ box, through _WSL2_, with _Goland_, lots 
 `go-sqlite3` mandates the presence of GCC, and the need for setting the environment variable `CGO_ENABLED=1`. On a Windows machine, configuring this additional compilation step can be tiresome.
 --
 
-[https://pkg.go.dev/modernc.org/sqlite]`modernc.org/sqlite` is a valid alternative to `go-sqlite3`, which doesn't depend on *CGO*, thus doesn't require pre-compilation. 
+[https://pkg.go.dev/modernc.org/sqlite]`modernc.org/sqlite` is a valid alternative to `go-sqlite3`, which doesn't depend on *CGO*, thus doesn't require pre-compilation.
 
 Its performance doesn't match `go-sqlite3`, but for light loads that isn't a concern: https://datastation.multiprocess.io/blog/2022-05-12-sqlite-in-go-with-and-without-cgo.html[Benchmark Comparison]
 
 == Build
 
-Run `go build ./cmd/webapi/` and pray.
+Run `go build ./cmd/webapi/` and 🙏.
+
+== Docker
+
+Run the container with:
+
+`docker run --name kvasari-api -u 1000:1000 -d -p 3000:3000 kvasari-api`
+
+Pick an adequate user ID and port to serve from.
 
 == Copyright and License
 
-Copyright (C) 2022-present Carlo Giuseppe Tomazzoli.
+Copyright (C) 2022-present, Silktrader.
 
 Use of this software is granted under the terms of the GPLv3 License.
